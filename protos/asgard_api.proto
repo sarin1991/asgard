@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package asgard_api;
+
+message GetRequest{
+    uint64 log_index=1;
+}
+
+message GetResponse{
+    bool system_message=1;
+    bool commited=2;
+    google.protobuf.Any user_message=3;
+}
+
+message SetRequest{
+    google.protobuf.Any user_message=1;
+    string transaction_id=2;
+}
+
+message SetResponse{
+    bool commited=1;
+}
+
+message ClientRequest{
+    oneof request{
+        GetRequest get_request=1;
+        SetRequest set_request=2;
+    }
+}
+
+service asgard_service{
+    rpc asgard_api(GetRequest) returns GetResponse{};
+}
