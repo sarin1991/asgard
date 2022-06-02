@@ -1,11 +1,14 @@
-use tokio::sync::mpsc::{Sender,Receiver};
-use message_io::network::{Transport, ToRemoteAddr};
-
-pub trait Transport {
+pub trait AsgardTransport {
     type Message;
     type Context;
-    async fn update_context(context:Context);
-    async fn broadcast_message(Message);
-    async fn send_message(peer_id:i64,Message);
-    async fn receive_message()->(i64,Message);
+    fn update_context(context:Self::Context);
+    fn broadcast_message(msg:Self::Message);
+    fn send_message(peer_id:String,msg:Self::Message);
+}
+
+pub trait ClientTransport {
+    type Message;
+    type Context;
+    fn update_context(context:Self::Context);
+    fn send_message(peer_id:String,msg:Self::Message);
 }
