@@ -101,7 +101,7 @@ pub struct FollowerInitialized {
 pub struct GenericAsgardMessage {
     #[prost(uint64, tag="1")]
     pub term: u64,
-    #[prost(oneof="generic_asgard_message::GenericMessage", tags="2, 3, 4, 5, 6, 7")]
+    #[prost(oneof="generic_asgard_message::GenericMessage", tags="2, 3, 4, 5, 6, 7, 8, 9, 10")]
     pub generic_message: ::core::option::Option<generic_asgard_message::GenericMessage>,
 }
 /// Nested message and enum types in `GenericAsgardMessage`.
@@ -120,6 +120,12 @@ pub mod generic_asgard_message {
         RequestVotesMessage(super::VoteRequest),
         #[prost(message, tag="7")]
         CanvassResponseMessage(super::RebellionResponse),
+        #[prost(message, tag="8")]
+        VoteResponseMessage(super::VoteResponse),
+        #[prost(message, tag="9")]
+        LeaderSyncMessage(super::LeaderSync),
+        #[prost(message, tag="10")]
+        FollowerInitializedMessage(super::FollowerInitialized),
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

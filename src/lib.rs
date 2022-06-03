@@ -1,6 +1,7 @@
-mod state;
+mod asgardian;
 mod transport;
 mod protobuf_messages;
+mod messages;
 
 #[cfg(test)]
 mod tests {

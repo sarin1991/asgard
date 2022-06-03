@@ -1,11 +1,8 @@
 use tokio::sync::mpsc::{Sender,Receiver};
+use crate::transport::TransportChannel;
 
 struct Asgardian {
-    asgard_state_tx: AsgardStateTx,
-    asgard_state_join_handle: tokio::task::JoinHandle<()>,
-    role_tx: RoleTx,
-    role_join_handle: tokio::task::JoinHandle<()>,
-    message_receiver: Receiver<Message>,
+    transport_channel:TransportChannel,
 }
 
 impl Asgardian{
