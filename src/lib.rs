@@ -2,6 +2,7 @@ mod asgardian;
 mod transport;
 mod protobuf_messages;
 mod messages;
+mod role;
 
 #[cfg(test)]
 mod tests {

@@ -2,72 +2,79 @@ use tokio::sync::mpsc::{Sender,Receiver};
 use tokio::task;
 use crate::messages::{APIMessage,AsgardianMessage,Message};
 
-type Address=String;
+pub type Address=String;
 
-pub struct TransportChannel {
-    client_message_sender: Sender<(APIMessage,Address)>,
-    asgardian_message_sender: Sender<(AsgardianMessage,Address)>,
-    message_receiver: Receiver<Message>,
+pub(crate) struct TransportChannel {
+    pub outbound_asgardian_message_sender: Sender<(AsgardianMessage,Address)>,
+    pub outbound_client_message_sender: Sender<(APIMessage,Address)>,
+    pub inbound_message_receiver: Receiver<(Message,Address)>,
+    pub inbound_message_sender: Sender<(Message,Address)>,
+}
+impl TransportChannel{
+    pub fn new(outbound_asgardian_message_sender: Sender<(AsgardianMessage,Address)>,
+                outbound_client_message_sender: Sender<(APIMessage,Address)>,
+                inbound_message_receiver: Receiver<(Message,Address)>,
+                inbound_message_sender: Sender<(Message,Address)>)->Self{
+        Self { 
+            outbound_asgardian_message_sender, 
+            outbound_client_message_sender, 
+            inbound_message_receiver,
+            inbound_message_sender
+        }
+    }
 }
 
 pub trait AsgardTransport {
     type Context;
-    fn new(inbound_sender:Sender<Message>)->Self;
-    fn initialize(&mut self)->Sender<(AsgardianMessage,Address)>;
+    fn new(outbound_asgardian_message_receiver:Receiver<(AsgardianMessage,Address)>,
+            inbound_message_sender:Sender<(Message,Address)>)->Self;
     fn update_context(context:Self::Context);
-    fn broadcast_message(msg:AsgardianMessage);
-    fn send_message(address:Address,msg:AsgardianMessage);
     fn run(self);
 }
 
 pub trait ClientTransport {
     type Context;
-    fn new(inbound_sender:Sender<Message>)->Self;
-    fn initialize(&mut self)->Sender<(APIMessage,Address)>;
+    fn new(outbound_client_message_receiver:Receiver<(APIMessage,Address)>,
+            inbound_message_sender:Sender<(Message,Address)>)->Self;
     fn update_context(context:Self::Context);
-    fn send_message(address:Address,msg:APIMessage);
     fn run(self);
 }
 
-pub struct Transport<A:AsgardTransport+Send+'static,C:ClientTransport+Send+'static>{
+pub(crate) struct Transport<A:AsgardTransport+Send+'static,C:ClientTransport+Send+'static>{
     client_transport:C,
     asgard_transport:A,
-    outbound_sender: Option<Sender<Message>>,
-    inbound_receiver: Receiver<Message>,
+    transport_channel: Option<TransportChannel>,
     peers: Vec<Address>,
     clients: Vec<Address>,
 }
 
-impl <A:AsgardTransport+Send,C:ClientTransport+Send> Transport<A,C> {
-    pub fn new() -> Self {
-        let (tx,rx) = tokio::sync::mpsc::channel::<Message>(1024);
+impl <A:AsgardTransport+Send+'static,C:ClientTransport+Send+'static> Transport<A,C> {
+    pub(crate) fn new() -> Self {
+        let (inbound_message_sender,inbound_message_receiver) = tokio::sync::mpsc::channel::<(Message,Address)>(1024);
+        let (outbound_asgardian_message_sender,outbound_asgardian_message_receiver) = tokio::sync::mpsc::channel::<(AsgardianMessage,Address)>(1024);
+        let (outbound_client_message_sender,outbound_client_message_receiver) = tokio::sync::mpsc::channel::<(APIMessage,Address)>(1024);
+        let transport_channel = TransportChannel::new(outbound_asgardian_message_sender, 
+                                                                        outbound_client_message_sender, 
+                                                                        inbound_message_receiver,
+                                                                        inbound_message_sender.clone());
         Self { 
-            client_transport: C::new(tx.clone()), 
-            asgard_transport: A::new(tx.clone()),
-            outbound_sender: None,
-            inbound_receiver: rx,
+            client_transport: C::new(outbound_client_message_receiver,inbound_message_sender.clone()), 
+            asgard_transport: A::new(outbound_asgardian_message_receiver,inbound_message_sender.clone()),
+            transport_channel: Some(transport_channel),
             peers: vec![],
             clients: vec![],
         }
     }
-    pub fn initialize(&mut self)->TransportChannel{
-        let (tx,rx) = tokio::sync::mpsc::channel::<Message>(1024);
-        self.outbound_sender = Some(tx);
-        let client_sender:Sender<(APIMessage, String)> =self.client_transport.initialize();
-        let asgardian_sender: Sender<(AsgardianMessage, String)> = self.asgard_transport.initialize();
-        TransportChannel { 
-            client_message_sender: client_sender, 
-            asgardian_message_sender: asgardian_sender, 
-            message_receiver: rx 
-        }
+    pub(crate) fn initialize(&mut self)->TransportChannel{
+        self.transport_channel.take().unwrap()
     }
-    pub fn addPeer(&mut self,peer:Address){
+    pub(crate) fn add_peer(&mut self,peer:Address){
         self.peers.push(peer);
     }
-    pub fn addClient(&mut self,client:Address){
+    pub(crate) fn add_client(&mut self,client:Address){
         self.clients.push(client);
     }
-    pub async fn run(self){
+    pub(crate) async fn run(self){
         let Transport{client_transport,
                       asgard_transport,
                       ..} = self;
@@ -77,7 +84,7 @@ impl <A:AsgardTransport+Send,C:ClientTransport+Send> Transport<A,C> {
         let asgard_transport_task = task::spawn_blocking({
             move || {asgard_transport.run();}
         });
-        client_transport_task.await;
-        asgard_transport_task.await;
+        let _ = client_transport_task.await;
+        let _ = asgard_transport_task.await;
     }
 }
