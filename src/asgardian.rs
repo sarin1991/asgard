@@ -4,11 +4,13 @@ use crate::messages::{APIMessage,AsgardianMessage,Message};
 use crate::transport::Address;
 use tokio::task;
 use tokio::sync::mpsc::{Sender,Receiver};
-use core::time::Duration;
+use std::collections::BinaryHeap;
+use std::time::{Instant,Duration};
 
 struct Timer{
     inbound_message_sender:Sender<(Message,Address)>,
     timer_message_receiver:Receiver<(Message,Duration,Duration)>,
+    timer_queue:BinaryHeap<(Message,Instant)>,
 }
 impl Timer{
     fn set(&mut self,msg:Message,start_duration:Duration,end_duration:Duration){
