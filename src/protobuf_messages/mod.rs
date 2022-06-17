@@ -1,1 +1,1 @@
-mod asgard_messages;
+pub mod asgard_messages;
