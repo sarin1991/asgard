@@ -2,17 +2,17 @@ use crate::protobuf_messages::asgard_messages::{LeaderSync,FollowerInitialized,L
     VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct AsgardMessageTimer{
 
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct AsgardElectionTimer{
 
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum AsgardianMessage{
     LeaderSync(LeaderSync),
     FollowerInitialized(FollowerInitialized),
@@ -27,12 +27,12 @@ pub enum AsgardianMessage{
     AsgardElectionTimer(AsgardElectionTimer),
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum APIMessage{
 
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum Message{
     AsgardianMessage(AsgardianMessage),
     APIMessage(APIMessage),

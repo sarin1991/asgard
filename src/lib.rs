@@ -3,6 +3,7 @@ mod transport;
 mod protobuf_messages;
 mod messages;
 mod role;
+mod asgard_error;
 
 #[cfg(test)]
 mod tests {
