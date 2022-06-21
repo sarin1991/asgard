@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
-pub(crate) struct CommitLog {
+pub(crate) struct CommittedLog {
     logs: Vec<AsgardLogMessage>,
 }
 

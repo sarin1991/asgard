@@ -1,4 +1,5 @@
 use crate::transport::TransportChannel;
+use crate::log::{CommittedLog,UncommittedLog};
 
 pub(crate) struct AsgardData {
     term:u64,
