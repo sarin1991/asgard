@@ -1,9 +1,21 @@
+pub(crate) enum RoleFlag {
+    LeaderFlag,
+    FollowerFlag,
+    CandidateFlag,
+    ImmigrantFlag,
+    ExileFlag,
+}
+
 pub(crate)  struct Rebel{
 
 }
 
 pub(crate) struct Leader{
 
+}
+
+impl Leader {
+    fn ()
 }
 
 pub(crate) struct Follower{
@@ -28,7 +40,7 @@ impl Immigrant {
     }
 }
 
-pub(crate) enum Role {
+pub(crate) enum RoleData {
     Leader(Leader),
     Follower(Follower),
     Candidate(Candidate),
@@ -36,9 +48,9 @@ pub(crate) enum Role {
     Exile(Exile),
 }
 
-impl Role {
+impl RoleData {
     pub(crate) fn new() -> Self {
         let immigrant = Immigrant::new();
-        Role::Immigrant(immigrant)
+        RoleData::Immigrant(immigrant)
     }
 }

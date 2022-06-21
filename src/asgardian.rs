@@ -1,5 +1,5 @@
 use crate::transport::TransportChannel;
-use crate::role::{Leader,Follower,Candidate,Role};
+use crate::role::{Leader,Follower,Candidate,RoleData,RoleFlag};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::transport::Address;
 use tokio;
@@ -9,22 +9,34 @@ use std::sync::mpsc::SendError;
 use std::time::{Instant,Duration};
 use crate::asgard_error::AsgardError;
 
-struct Asgardian {
+struct AsgardData {
     term:u64,
     latest_log_index:u64,
     commit_index:u64,
     transport_channel:TransportChannel,
-    role: Role,
 }
-
-impl Asgardian{
+impl AsgardData {
     fn new(transport_channel:TransportChannel)->Self{
         Self {
             term:0,
             latest_log_index:0,
             commit_index:0,
             transport_channel,
-            role:Role::new(),
+        }
+    }
+}
+
+struct Asgardian {
+    role_flag: RoleFlag,
+    asgard_data: AsgardData,
+    role_data: RoleData,
+}
+impl Asgardian{
+    fn new(transport_channel:TransportChannel)->Self{
+        Self {
+            role_flag: RoleFlag::CandidateFlag,
+            asgard_data: AsgardData::new(transport_channel),
+            role_data: RoleData::new(),
         }
     }
     async fn asgard_message_timer(inbound_message_sender:Sender<(Message,Address)>)->Result<(),AsgardError>{
@@ -48,6 +60,14 @@ impl Asgardian{
         }
     }
     fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
+        let break_flag = match self.role {
+            Role::Candidate(_) => ;
+            Role::Exile(_) => ;
+            Role::Follower(_) => ;
+            Role::Immigrant(_) => ;
+            Role::Leader(_) => ;
+        };
+        Ok(break_flag)
         panic!("Unimplemented!");
     }
     fn handle_api_message(&mut self,api_message:APIMessage,sender:Address)->Result<bool,AsgardError>{
