@@ -5,6 +5,7 @@ mod messages;
 mod role;
 mod asgard_error;
 mod log;
+mod asgard_data;
 
 #[cfg(test)]
 mod tests {
