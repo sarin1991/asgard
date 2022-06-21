@@ -2,7 +2,7 @@ use crate::transport::TransportChannel;
 use crate::role::{Leader,Follower,Candidate,Role};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::transport::Address;
-use tokio::task;
+use tokio;
 use tokio::sync::mpsc::{Sender,Receiver};
 use std::collections::BinaryHeap;
 use std::sync::mpsc::SendError;
@@ -27,14 +27,14 @@ impl Asgardian{
             role:Role::new(),
         }
     }
-    async fn asgard_message_timer(inbound_message_sender:Sender<(Message,Address)>)->Result<(),tokio::sync::mpsc::error::SendError<(Message,String)>>{
+    async fn asgard_message_timer(inbound_message_sender:Sender<(Message,Address)>)->Result<(),AsgardError>{
         let mut interval = tokio::time::interval(Duration::from_millis(30));
         let asgard_message_timer = AsgardMessageTimer{};
         let asgardian_message = AsgardianMessage::AsgardMessageTimer(asgard_message_timer);
         let message = Message::AsgardianMessage(asgardian_message);
         loop {
             interval.tick().await;
-            inbound_message_sender.send((message.clone(),"local".to_owned())).await?;
+            inbound_message_sender.send((message.clone(),Address::Local)).await?;
         }
     }
     async fn asgard_election_timer(inbound_message_sender:Sender<(Message,Address)>)->Result<(),AsgardError>{
@@ -44,13 +44,13 @@ impl Asgardian{
         let message = Message::AsgardianMessage(asgardian_message);
         loop {
             interval.tick().await;
-            inbound_message_sender.send((message.clone(),"local".to_owned())).await?;
+            inbound_message_sender.send((message.clone(),Address::Local)).await?;
         }
     }
-    fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address){
+    fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
-    fn handle_api_message(&mut self,api_message:APIMessage,sender:Address){
+    fn handle_api_message(&mut self,api_message:APIMessage,sender:Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     } 
     async fn start(&mut self)->Result<(),AsgardError>{
@@ -58,12 +58,16 @@ impl Asgardian{
         let task2 = tokio::spawn(Asgardian::asgard_message_timer(self.transport_channel.inbound_message_sender.clone()));
         loop{
             let (message,address) = self.transport_channel.inbound_message_receiver.recv().await.unwrap();
-            match message {
-                Message::AsgardianMessage(asgardian_message) => self.handle_asgardian_message(asgardian_message, address),
-                Message::APIMessage(api_message) => self.handle_api_message(api_message, address),
+            let break_flag = match message {
+                Message::AsgardianMessage(asgardian_message) => self.handle_asgardian_message(asgardian_message, address)?,
+                Message::APIMessage(api_message) => self.handle_api_message(api_message, address)?,
+            };
+            if !break_flag {
+                break;
             }
         }
         task1.await??;
         task2.await??;
+        Ok(())
     }
 }

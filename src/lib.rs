@@ -4,6 +4,7 @@ mod protobuf_messages;
 mod messages;
 mod role;
 mod asgard_error;
+mod log;
 
 #[cfg(test)]
 mod tests {

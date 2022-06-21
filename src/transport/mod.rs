@@ -2,7 +2,12 @@ use tokio::sync::mpsc::{Sender,Receiver};
 use tokio::task;
 use crate::messages::{APIMessage,AsgardianMessage,Message};
 
-pub type Address=String;
+#[derive(Debug)]
+pub enum Address{
+    IP(String),
+    Broadcast,
+    Local,
+}
 
 pub(crate) struct TransportChannel {
     pub outbound_asgardian_message_sender: Sender<(AsgardianMessage,Address)>,
