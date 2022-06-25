@@ -1,4 +1,5 @@
 use crate::asgard_data::AsgardData;
+use crate::asgard_error::AsgardError;
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::transport::{TransportChannel,Address};
 
@@ -11,7 +12,7 @@ pub(crate) struct Leader{
 }
 
 impl Leader {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->bool{
+    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -20,7 +21,7 @@ pub(crate) struct Follower{
     rebel: Rebel,
 }
 impl Follower {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->bool{
+    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -29,7 +30,7 @@ pub(crate) struct Candidate{
     rebel: Rebel,
 }
 impl Candidate {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->bool{
+    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -38,7 +39,7 @@ pub(crate)  struct Exile{
 
 }
 impl Exile {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->bool{
+    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -51,7 +52,7 @@ impl Immigrant {
     pub(crate) fn new() -> Self {
         Self{}
     }
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->bool{
+    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }

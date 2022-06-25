@@ -40,13 +40,22 @@ impl Asgardian{
             inbound_message_sender.send((message.clone(),Address::Local)).await?;
         }
     }
+    fn increment_term(&mut self){
+        panic!("unimplemented!");
+    }
     fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
+        if asgardian_message.is_lower_term(self.asgard_data.term){
+            return Ok(false);
+        }
+        if asgardian_message.is_higher_term(self.asgard_data.term){
+            self.increment_term();
+        }
         let break_flag = match &mut self.role {
-            Role::Leader(leader) => leader.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender),
-            Role::Follower(follower) => follower.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender),
-            Role::Candidate(candidate) => candidate.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender),
-            Role::Immigrant(immigrant) => immigrant.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender),
-            Role::Exile(exile) => exile.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender),
+            Role::Leader(leader) => leader.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender)?,
+            Role::Follower(follower) => follower.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender)?,
+            Role::Candidate(candidate) => candidate.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender)?,
+            Role::Immigrant(immigrant) => immigrant.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender)?,
+            Role::Exile(exile) => exile.handle_asgardian_message(&mut self.asgard_data,asgardian_message,sender)?,
         };
         Ok(break_flag)
     }

@@ -2,9 +2,9 @@ use crate::transport::TransportChannel;
 use crate::log::{CommittedLog,UncommittedLog};
 
 pub(crate) struct AsgardData {
-    term:u64,
-    latest_log_index:u64,
-    commit_index:u64,
+    pub(crate) term:u64,
+    pub(crate) latest_log_index:u64,
+    pub(crate) commit_index:u64,
     pub(crate) transport_channel:TransportChannel,
 }
 impl AsgardData {
