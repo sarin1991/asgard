@@ -29,7 +29,7 @@ impl TransportChannel{
     }
 }
 
-pub trait AsgardTransport {
+pub(crate) trait AsgardTransport {
     type Context;
     fn new(outbound_asgardian_message_receiver:Receiver<(AsgardianMessage,Address)>,
             inbound_message_sender:Sender<(Message,Address)>)->Self;
@@ -37,7 +37,7 @@ pub trait AsgardTransport {
     fn run(self);
 }
 
-pub trait ClientTransport {
+pub(crate) trait ClientTransport {
     type Context;
     fn new(outbound_client_message_receiver:Receiver<(APIMessage,Address)>,
             inbound_message_sender:Sender<(Message,Address)>)->Self;

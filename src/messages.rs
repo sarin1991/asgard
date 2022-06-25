@@ -4,16 +4,14 @@ use crate::protobuf_messages::asgard_messages::{LeaderSync,FollowerInitialized,L
 
 #[derive(Clone,Debug)]
 pub(crate) struct AsgardMessageTimer{
-    pub(crate) term:u64,
 }
 
 #[derive(Clone,Debug)]
 pub(crate) struct AsgardElectionTimer{
-    pub(crate) term:u64,
 }
 
 #[derive(Clone,Debug)]
-pub enum AsgardianMessage{
+pub(crate) enum AsgardianMessage{
     LeaderSync(LeaderSync),
     FollowerInitialized(FollowerInitialized),
     LeaderHeartbeat(LeaderHeartbeat),
@@ -28,19 +26,34 @@ pub enum AsgardianMessage{
 }
 
 impl AsgardianMessage {
-    pub(crate) fn get_message_term(&self) -> u64 {
+    pub(crate) fn is_higher_term(&self,current_term:u64) -> bool {
         match self {
-            AsgardianMessage::LeaderSync(leader_sync) => leader_sync.term,
-            AsgardianMessage::FollowerInitialized(follower_initialized) => follower_initialized.term,
-            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => leader_heartbeat.term,
-            AsgardianMessage::VoteResponse(vote_response) => vote_response.term,
-            AsgardianMessage::VoteRequest(vote_request) => vote_request.term,
-            AsgardianMessage::RebellionResponse(rebellion_response) => rebellion_response.term,
-            AsgardianMessage::RebellionRequest(rebellion_request) => rebellion_request.term,
-            AsgardianMessage::FollowerUpdate(follower_update) => follower_update.term,
-            AsgardianMessage::AddEntry(add_entry) => add_entry.term,
-            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => asgard_message_timer.term,
-            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => asgard_election_timer.term,
+            AsgardianMessage::LeaderSync(leader_sync) => leader_sync.term>current_term,
+            AsgardianMessage::FollowerInitialized(follower_initialized) => follower_initialized.term>current_term,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => leader_heartbeat.term>current_term,
+            AsgardianMessage::VoteResponse(vote_response) => vote_response.term>current_term,
+            AsgardianMessage::VoteRequest(vote_request) => vote_request.term>current_term,
+            AsgardianMessage::RebellionResponse(rebellion_response) => rebellion_response.term>current_term,
+            AsgardianMessage::RebellionRequest(rebellion_request) => rebellion_request.term>current_term,
+            AsgardianMessage::FollowerUpdate(follower_update) => follower_update.term>current_term,
+            AsgardianMessage::AddEntry(add_entry) => add_entry.term>current_term,
+            AsgardianMessage::AsgardMessageTimer(_) => false,
+            AsgardianMessage::AsgardElectionTimer(_) => false,
+        }
+    }
+    pub(crate) fn is_lower_term(&self,current_term:u64) -> bool {
+        match self {
+            AsgardianMessage::LeaderSync(leader_sync) => leader_sync.term<current_term,
+            AsgardianMessage::FollowerInitialized(follower_initialized) => follower_initialized.term<current_term,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => leader_heartbeat.term<current_term,
+            AsgardianMessage::VoteResponse(vote_response) => vote_response.term<current_term,
+            AsgardianMessage::VoteRequest(vote_request) => vote_request.term<current_term,
+            AsgardianMessage::RebellionResponse(rebellion_response) => rebellion_response.term<current_term,
+            AsgardianMessage::RebellionRequest(rebellion_request) => rebellion_request.term<current_term,
+            AsgardianMessage::FollowerUpdate(follower_update) => follower_update.term<current_term,
+            AsgardianMessage::AddEntry(add_entry) => add_entry.term<current_term,
+            AsgardianMessage::AsgardMessageTimer(_) => false,
+            AsgardianMessage::AsgardElectionTimer(_) => false,
         }
     }
 }
@@ -51,7 +64,7 @@ pub enum APIMessage{
 }
 
 #[derive(Clone,Debug)]
-pub enum Message{
+pub(crate) enum Message{
     AsgardianMessage(AsgardianMessage),
     APIMessage(APIMessage),
 }

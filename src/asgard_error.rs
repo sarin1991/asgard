@@ -6,7 +6,7 @@ use tokio::task::JoinError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum AsgardError {
+pub(crate) enum AsgardError {
     #[error("transparent")]
     JoinError(#[from] JoinError),
     #[error("transparent")]
