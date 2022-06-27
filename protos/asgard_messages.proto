@@ -48,6 +48,7 @@ message LeaderHeartbeat {
 message FollowerUpdate{
     uint64 term=1;
     uint64 log_index=2;
+    bool initialization_flag=3;
 }
 
 message RebellionRequest{

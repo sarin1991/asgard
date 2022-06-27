@@ -18,6 +18,7 @@ impl Leader {
 }
 
 pub(crate) struct Follower{
+    initialization_flag: bool,
     rebel: Rebel,
 }
 impl Follower {
