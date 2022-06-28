@@ -1,6 +1,9 @@
+use std::collections::VecDeque;
+
 use crate::asgard_data::AsgardData;
 use crate::asgard_error::AsgardError;
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
+use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::transport::{TransportChannel,Address};
 
 pub(crate)  struct Rebel{
@@ -17,9 +20,20 @@ impl Leader {
     }
 }
 
+struct LeaderMessageQueue{
+    messages:VecDeque<Option<AsgardLogMessage>>,
+}
+impl LeaderMessageQueue{
+    fn new()->Self{
+        Self{
+            messages:VecDeque::<Option<AsgardLogMessage>>::new(),
+        }
+    }
+}
 pub(crate) struct Follower{
     initialization_flag: bool,
     rebel: Rebel,
+    leader_message_queue: LeaderMessageQueue,
 }
 impl Follower {
     pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{

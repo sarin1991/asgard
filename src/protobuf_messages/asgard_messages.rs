@@ -64,6 +64,8 @@ pub struct FollowerUpdate {
     pub term: u64,
     #[prost(uint64, tag="2")]
     pub log_index: u64,
+    #[prost(bool, tag="3")]
+    pub initialization_flag: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RebellionRequest {
