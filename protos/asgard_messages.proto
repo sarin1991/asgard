@@ -79,11 +79,6 @@ message LeaderSync{
     repeated AsgardLogMessage messages=2;
 }
 
-message FollowerInitialized{
-    uint64 term=1;
-    string leader_id=2;
-}
-
 message GenericAsgardMessage{
     oneof generic_message{
         AddEntry add_entry_message=1;
@@ -94,6 +89,5 @@ message GenericAsgardMessage{
         RebellionResponse canvass_response_message=6;
         VoteResponse vote_response_message=7;
         LeaderSync leader_sync_message=8;
-        FollowerInitialized follower_initialized_message=9;
     }
 }

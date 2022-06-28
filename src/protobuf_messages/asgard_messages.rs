@@ -109,15 +109,8 @@ pub struct LeaderSync {
     pub messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FollowerInitialized {
-    #[prost(uint64, tag="1")]
-    pub term: u64,
-    #[prost(string, tag="2")]
-    pub leader_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenericAsgardMessage {
-    #[prost(oneof="generic_asgard_message::GenericMessage", tags="1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof="generic_asgard_message::GenericMessage", tags="1, 2, 3, 4, 5, 6, 7, 8")]
     pub generic_message: ::core::option::Option<generic_asgard_message::GenericMessage>,
 }
 /// Nested message and enum types in `GenericAsgardMessage`.
@@ -140,8 +133,6 @@ pub mod generic_asgard_message {
         VoteResponseMessage(super::VoteResponse),
         #[prost(message, tag="8")]
         LeaderSyncMessage(super::LeaderSync),
-        #[prost(message, tag="9")]
-        FollowerInitializedMessage(super::FollowerInitialized),
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

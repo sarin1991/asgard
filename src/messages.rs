@@ -1,4 +1,4 @@
-use crate::protobuf_messages::asgard_messages::{LeaderSync,FollowerInitialized,LeaderHeartbeat,
+use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
     VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 
 
@@ -13,7 +13,6 @@ pub(crate) struct AsgardElectionTimer{
 #[derive(Clone,Debug)]
 pub(crate) enum AsgardianMessage{
     LeaderSync(LeaderSync),
-    FollowerInitialized(FollowerInitialized),
     LeaderHeartbeat(LeaderHeartbeat),
     VoteResponse(VoteResponse),
     VoteRequest(VoteRequest),
@@ -29,7 +28,6 @@ impl AsgardianMessage {
     pub(crate) fn is_higher_term(&self,current_term:u64) -> bool {
         match self {
             AsgardianMessage::LeaderSync(leader_sync) => leader_sync.term>current_term,
-            AsgardianMessage::FollowerInitialized(follower_initialized) => follower_initialized.term>current_term,
             AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => leader_heartbeat.term>current_term,
             AsgardianMessage::VoteResponse(vote_response) => vote_response.term>current_term,
             AsgardianMessage::VoteRequest(vote_request) => vote_request.term>current_term,
@@ -44,7 +42,6 @@ impl AsgardianMessage {
     pub(crate) fn is_lower_term(&self,current_term:u64) -> bool {
         match self {
             AsgardianMessage::LeaderSync(leader_sync) => leader_sync.term<current_term,
-            AsgardianMessage::FollowerInitialized(follower_initialized) => follower_initialized.term<current_term,
             AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => leader_heartbeat.term<current_term,
             AsgardianMessage::VoteResponse(vote_response) => vote_response.term<current_term,
             AsgardianMessage::VoteRequest(vote_request) => vote_request.term<current_term,

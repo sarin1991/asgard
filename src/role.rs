@@ -4,6 +4,8 @@ use crate::asgard_data::AsgardData;
 use crate::asgard_error::AsgardError;
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
+use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
+    VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 use crate::transport::{TransportChannel,Address};
 
 pub(crate)  struct Rebel{
@@ -15,7 +17,7 @@ pub(crate) struct Leader{
 }
 
 impl Leader {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -36,7 +38,7 @@ pub(crate) struct Follower{
     leader_message_queue: LeaderMessageQueue,
 }
 impl Follower {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -45,7 +47,49 @@ pub(crate) struct Candidate{
     rebel: Rebel,
 }
 impl Candidate {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+        let break_flag = match asgardian_message {
+            AsgardianMessage::LeaderSync(leader_sync) => Candidate::handle_leader_sync(role,asgard_data,leader_sync,sender)?,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Candidate::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender)?,
+            AsgardianMessage::VoteResponse(vote_response) => Candidate::handle_vote_response(role,asgard_data,vote_response,sender)?,
+            AsgardianMessage::VoteRequest(vote_request) => Candidate::handle_vote_request(role,asgard_data,vote_request,sender)?,
+            AsgardianMessage::RebellionResponse(rebellion_response) => Candidate::handle_rebellion_response(role,asgard_data,rebellion_response,sender)?,
+            AsgardianMessage::RebellionRequest(rebellion_request) => Candidate::handle_rebellion_request(role,asgard_data,rebellion_request,sender)?,
+            AsgardianMessage::FollowerUpdate(follower_update) => Candidate::handle_follower_update(role,asgard_data,follower_update,sender)?,
+            AsgardianMessage::AddEntry(add_entry) => Candidate::handle_add_entry(role,asgard_data,add_entry,sender)?,
+            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Candidate::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender)?,
+            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Candidate::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender)?,
+        };
+        Ok(break_flag)
+    }
+    fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_message_timer: AsgardMessageTimer,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    fn handle_asgard_election_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_election_timer: AsgardElectionTimer,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -54,7 +98,7 @@ pub(crate)  struct Exile{
 
 }
 impl Exile {
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
@@ -67,7 +111,7 @@ impl Immigrant {
     pub(crate) fn new() -> Self {
         Self{}
     }
-    pub(crate) fn handle_asgardian_message(&mut self,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
