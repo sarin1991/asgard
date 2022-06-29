@@ -2,7 +2,7 @@ use tokio::sync::mpsc::{Sender,Receiver};
 use tokio::task;
 use crate::messages::{APIMessage,AsgardianMessage,Message};
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Address{
     IP(String),
     Broadcast,
