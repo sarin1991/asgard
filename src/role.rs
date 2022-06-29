@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::asgard_data::AsgardData;
-use crate::asgard_error::AsgardError;
+use crate::asgard_error::{AsgardError,InconsistentRoleError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
@@ -11,12 +11,23 @@ use crate::transport::{TransportChannel,Address};
 pub(crate)  struct Rebel{
 
 }
+impl Rebel {
+    fn new() -> Self {
+        Self {  
+        }
+    }
+}
 
 pub(crate) struct Leader{
 
 }
 
 impl Leader {
+    fn new() -> Self {
+        Self {  
+
+        }
+    }
     pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
@@ -33,17 +44,29 @@ impl LeaderMessageQueue{
     }
 }
 pub(crate) struct Follower{
+    leader: Option<Address>,
+    voted_for: Option<Address>,
     initialization_flag: bool,
     rebel: Rebel,
     leader_message_queue: LeaderMessageQueue,
 }
 impl Follower {
+    fn new(leader: Option<Address>,voted_for: Option<Address>) -> Self {
+        Self {
+            leader,
+            voted_for,
+            initialization_flag:false,
+            rebel:Rebel::new(),
+            leader_message_queue: LeaderMessageQueue::new(),
+        }
+    }
     pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
 
 pub(crate) struct Candidate{
+    voted_for: Option<Address>,
     rebel: Rebel,
 }
 impl Candidate {
@@ -63,7 +86,12 @@ impl Candidate {
         Ok(break_flag)
     }
     fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let voted_for = match role {
+            Role::Candidate(candidate) => candidate.voted_for.clone(),
+            _ => Err(AsgardError::InconsistentRoleError(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name())))?,
+        };
+        role.to_follower(Some(sender),voted_for)?;
+        Ok(false)
     }
     fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
@@ -128,5 +156,24 @@ impl Role {
     pub(crate) fn new() -> Self {
         let immigrant = Immigrant::new();
         Role::Immigrant(immigrant)
+    }
+    fn get_role_name(&self)->String{
+        match self {
+            Role::Leader(_) => "Leader".to_owned(),
+            Role::Follower(_) => "Follower".to_owned(),
+            Role::Candidate(_) => "Candidate".to_owned(),
+            Role::Immigrant(_) => "Immigrant".to_owned(),
+            Role::Exile(_) => "Exile".to_owned(),
+        }
+    }
+    fn to_leader(&mut self) ->Result<(),AsgardError> {
+        let leader = Leader::new();
+        *self = Role::Leader(leader);
+        Ok(())
+    }
+    fn to_follower(&mut self,leader: Option<Address>,voted_for: Option<Address>) -> Result<(),AsgardError> {
+        let follower = Follower::new(leader,voted_for);
+        *self = Role::Follower(follower);
+        Ok(())
     }
 }
