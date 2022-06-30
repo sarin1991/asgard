@@ -52,6 +52,7 @@ pub(crate) struct Follower{
 }
 impl Follower {
     fn new(leader: Option<Address>,voted_for: Option<Address>) -> Self {
+        //TODO:Add follower initialization error when both leader and voted for is None. It should be candidate in that case
         Self {
             leader,
             voted_for,
@@ -88,7 +89,7 @@ impl Candidate {
     fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
         let voted_for = match role {
             Role::Candidate(candidate) => candidate.voted_for.clone(),
-            _ => Err(AsgardError::InconsistentRoleError(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name())))?,
+            _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
         };
         role.to_follower(Some(sender),voted_for)?;
         Ok(false)
