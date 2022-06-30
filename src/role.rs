@@ -45,13 +45,13 @@ impl LeaderMessageQueue{
 }
 pub(crate) struct Follower{
     leader: Option<Address>,
-    voted_for: Option<Address>,
+    voted_for: Address,
     initialization_flag: bool,
     rebel: Rebel,
     leader_message_queue: LeaderMessageQueue,
 }
 impl Follower {
-    fn new(leader: Option<Address>,voted_for: Option<Address>) -> Self {
+    fn new(leader: Option<Address>,voted_for: Address) -> Self {
         //TODO:Add follower initialization error when both leader and voted for is None. It should be candidate in that case
         Self {
             leader,
@@ -87,9 +87,13 @@ impl Candidate {
         Ok(break_flag)
     }
     fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        let voted_for = match role {
+        let candidate_voted_for = match role {
             Role::Candidate(candidate) => candidate.voted_for.clone(),
             _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
+        };
+        let voted_for = match candidate_voted_for {
+            Some(previous_voted) => previous_voted,
+            None => sender.clone(),
         };
         role.to_follower(Some(sender),voted_for)?;
         Ok(false)
@@ -172,7 +176,7 @@ impl Role {
         *self = Role::Leader(leader);
         Ok(())
     }
-    fn to_follower(&mut self,leader: Option<Address>,voted_for: Option<Address>) -> Result<(),AsgardError> {
+    fn to_follower(&mut self,leader: Option<Address>,voted_for: Address) -> Result<(),AsgardError> {
         let follower = Follower::new(leader,voted_for);
         *self = Role::Follower(follower);
         Ok(())
