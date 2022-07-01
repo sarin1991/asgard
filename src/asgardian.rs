@@ -50,13 +50,7 @@ impl Asgardian{
         if asgardian_message.is_higher_term(self.asgard_data.term){
             self.increment_term();
         }
-        let break_flag = match &mut self.role {
-            Role::Leader(_) => Leader::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?,
-            Role::Follower(_) => Follower::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?,
-            Role::Candidate(_) => Candidate::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?,
-            Role::Immigrant(_) => Immigrant::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?,
-            Role::Exile(_) => Exile::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?,
-        };
+        let break_flag = Role::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?;
         Ok(break_flag)
     }
     fn handle_api_message(&mut self,api_message:APIMessage,sender:Address)->Result<bool,AsgardError>{

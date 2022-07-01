@@ -95,11 +95,22 @@ impl Candidate {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
-        role.to_follower(Some(sender),voted_for)?;
-        Ok(false)
+        role.to_follower(Some(sender.clone()),voted_for)?;
+        let break_flag = Role::handle_asgardian_message(role, asgard_data, AsgardianMessage::LeaderSync(leader_sync), sender)?;
+        Ok(break_flag)
     }
     fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let candidate_voted_for = match role {
+            Role::Candidate(candidate) => candidate.voted_for.clone(),
+            _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
+        };
+        let voted_for = match candidate_voted_for {
+            Some(previous_voted) => previous_voted,
+            None => sender.clone(),
+        };
+        role.to_follower(Some(sender.clone()),voted_for)?;
+        let break_flag = Role::handle_asgardian_message(role, asgard_data, AsgardianMessage::LeaderHeartbeat(leader_heartbeat), sender)?;
+        Ok(break_flag)
     }
     fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
@@ -170,6 +181,16 @@ impl Role {
             Role::Immigrant(_) => "Immigrant".to_owned(),
             Role::Exile(_) => "Exile".to_owned(),
         }
+    }
+    pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
+        let break_flag = match &role {
+            Role::Leader(_) => Leader::handle_asgardian_message(role,asgard_data,asgardian_message,sender)?,
+            Role::Follower(_) => Follower::handle_asgardian_message( role,asgard_data,asgardian_message,sender)?,
+            Role::Candidate(_) => Candidate::handle_asgardian_message( role,asgard_data,asgardian_message,sender)?,
+            Role::Immigrant(_) => Immigrant::handle_asgardian_message(role,asgard_data,asgardian_message,sender)?,
+            Role::Exile(_) => Exile::handle_asgardian_message(role,asgard_data,asgardian_message,sender)?,
+        };
+        Ok(break_flag)
     }
     fn to_leader(&mut self) ->Result<(),AsgardError> {
         let leader = Leader::new();

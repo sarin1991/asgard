@@ -7,15 +7,11 @@ use thiserror::Error;
 
 #[derive(Debug)]
 pub(crate) struct InconsistentRoleError{
-    expected_role_name:String,
-    actual_role_name:String,
     error_string:String,
 }
 impl InconsistentRoleError {
     pub(crate) fn new(expected_role_name:String,actual_role_name:String) -> Self {
         Self {
-            expected_role_name:expected_role_name.clone(),
-            actual_role_name:actual_role_name.clone(),
             error_string:Self::get_error_string(expected_role_name.clone(), actual_role_name.clone()),
         }
     }
