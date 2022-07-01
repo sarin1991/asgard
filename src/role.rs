@@ -52,7 +52,6 @@ pub(crate) struct Follower{
 }
 impl Follower {
     fn new(leader: Option<Address>,voted_for: Address) -> Self {
-        //TODO:Add follower initialization error when both leader and voted for is None. It should be candidate in that case
         Self {
             leader,
             voted_for,
@@ -86,6 +85,13 @@ impl Candidate {
         };
         Ok(break_flag)
     }
+    fn get_variant(role: &mut Role) -> Result<&mut Self,AsgardError>{
+        let candidate = match role {
+            Role::Candidate(candidate) => candidate,
+            _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
+        };
+        Ok(candidate)
+    }
     fn to_leader(role: &mut Role) ->Result<(),AsgardError> {
         let leader = Leader::new();
         *role = Role::Leader(leader);
@@ -97,11 +103,8 @@ impl Candidate {
         Ok(())
     }
     fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        let candidate_voted_for = match role {
-            Role::Candidate(candidate) => candidate.voted_for.clone(),
-            _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
-        };
-        let voted_for = match candidate_voted_for {
+        let candidate = Candidate::get_variant(role)?;
+        let voted_for = match candidate.voted_for.clone() {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
@@ -110,11 +113,8 @@ impl Candidate {
         Ok(break_flag)
     }
     fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        let candidate_voted_for = match role {
-            Role::Candidate(candidate) => candidate.voted_for.clone(),
-            _ => Err(InconsistentRoleError::new("Candidate".to_owned(),role.get_role_name()))?,
-        };
-        let voted_for = match candidate_voted_for {
+        let candidate = Candidate::get_variant(role)?;
+        let voted_for = match candidate.voted_for.clone() {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
