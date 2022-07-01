@@ -86,6 +86,16 @@ impl Candidate {
         };
         Ok(break_flag)
     }
+    fn to_leader(role: &mut Role) ->Result<(),AsgardError> {
+        let leader = Leader::new();
+        *role = Role::Leader(leader);
+        Ok(())
+    }
+    fn to_follower(role: &mut Role,leader: Option<Address>,voted_for: Address) -> Result<(),AsgardError> {
+        let follower = Follower::new(leader,voted_for);
+        *role = Role::Follower(follower);
+        Ok(())
+    }
     fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
         let candidate_voted_for = match role {
             Role::Candidate(candidate) => candidate.voted_for.clone(),
@@ -95,7 +105,7 @@ impl Candidate {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
-        role.to_follower(Some(sender.clone()),voted_for)?;
+        Candidate::to_follower(role, Some(sender.clone()), voted_for)?;
         let break_flag = Role::handle_asgardian_message(role, asgard_data, AsgardianMessage::LeaderSync(leader_sync), sender)?;
         Ok(break_flag)
     }
@@ -108,7 +118,7 @@ impl Candidate {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
-        role.to_follower(Some(sender.clone()),voted_for)?;
+        Candidate::to_follower(role, Some(sender.clone()), voted_for)?;
         let break_flag = Role::handle_asgardian_message(role, asgard_data, AsgardianMessage::LeaderHeartbeat(leader_heartbeat), sender)?;
         Ok(break_flag)
     }
@@ -191,15 +201,5 @@ impl Role {
             Role::Exile(_) => Exile::handle_asgardian_message(role,asgard_data,asgardian_message,sender)?,
         };
         Ok(break_flag)
-    }
-    fn to_leader(&mut self) ->Result<(),AsgardError> {
-        let leader = Leader::new();
-        *self = Role::Leader(leader);
-        Ok(())
-    }
-    fn to_follower(&mut self,leader: Option<Address>,voted_for: Address) -> Result<(),AsgardError> {
-        let follower = Follower::new(leader,voted_for);
-        *self = Role::Follower(follower);
-        Ok(())
     }
 }
