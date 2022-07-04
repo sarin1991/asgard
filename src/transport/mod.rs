@@ -1,12 +1,22 @@
 use tokio::sync::mpsc::{Sender,Receiver};
 use tokio::task;
 use crate::messages::{APIMessage,AsgardianMessage,Message};
+use std::cmp::{Eq,PartialEq};
 
-#[derive(Debug,Clone)]
-pub enum Address{
+#[derive(Debug,Clone,Hash,PartialEq,Eq)]
+pub(crate) enum Address{
     IP(String),
     Broadcast,
     Local,
+}
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+           Address::IP(string) => write!(f, "Address::IP::{}",string),
+           Address::Broadcast => write!(f,"Address::Broadcast"),
+           Address::Local => write!(f,"Address::Local"),
+        }
+    }
 }
 
 pub(crate) struct TransportChannel {

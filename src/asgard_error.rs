@@ -31,6 +31,54 @@ impl Error for InconsistentRoleError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct UnknownPeerError{
+    error_string:String,
+}
+impl UnknownPeerError {
+    pub(crate) fn new(context:String,peer:Address) -> Self {
+        Self {
+            error_string: Self::get_error_string(context,peer),
+        }
+    }
+    fn get_error_string(context:String,peer:Address)->String {
+        let s = format!("{}: Peer - {:#?} was not found",context.as_str(),peer);
+        s
+    }
+}
+impl fmt::Display for UnknownPeerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for UnknownPeerError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ProtobufParsingError{
+    error_string:String,
+}
+impl ProtobufParsingError {
+    pub(crate) fn new(error_string:String) -> Self {
+        Self {
+            error_string,
+        }
+    }
+}
+impl fmt::Display for ProtobufParsingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for ProtobufParsingError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -39,4 +87,8 @@ pub(crate) enum AsgardError {
     SendError(#[from] tokio::sync::mpsc::error::SendError<(Message,Address)>),
     #[error("transparent")]
     InconsistentRoleError(#[from] InconsistentRoleError),
+    #[error("transparent")]
+    UnknownPeerError(#[from] UnknownPeerError),
+    #[error("transparent")]
+    ProtobufParsingError(#[from] ProtobufParsingError),
 }

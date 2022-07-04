@@ -1,7 +1,7 @@
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
 
 use crate::asgard_data::AsgardData;
-use crate::asgard_error::{AsgardError,InconsistentRoleError};
+use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
@@ -65,11 +65,74 @@ impl Follower {
     }
 }
 
+struct PeerVote {
+    address:Address,
+    received_vote:bool,
+}
+impl PeerVote {
+    fn new(address:Address) -> Self {
+        Self { 
+            address,
+            received_vote:false,
+        }
+    }
+    fn set_vote(&mut self) {
+        self.received_vote = true;
+    }
+}
+
+struct VoteCounter {
+    peer_vote_map: HashMap<Address,PeerVote>,
+}
+impl VoteCounter {
+    fn new(peers:Vec<Address>) -> Self {
+        let mut peer_vote_map:HashMap<Address,PeerVote> = HashMap::new();
+        for peer in peers {
+            peer_vote_map.insert(peer.clone(),PeerVote::new(peer));
+        }
+        Self { 
+            peer_vote_map
+        }
+    }
+    fn got_majority(&self)->bool{
+        let mut total = 0u32;
+        let mut votes_granted = 0u32;
+        for (peer,peer_vote) in self.peer_vote_map.iter() {
+            if peer_vote.received_vote {
+                votes_granted = votes_granted+1;
+            }
+            total=total+1;
+        }
+        if (votes_granted as f64) > (0.5 *total as f64) {
+            true
+        }
+        else {
+            false
+        }
+    }
+    fn add_vote(&mut self, peer: Address) -> Result<(),AsgardError>{
+        let peer_vote_option = self.peer_vote_map.get_mut(&peer);
+        match peer_vote_option {
+            Some(peer_vote) => Ok(peer_vote.set_vote()),
+            None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), peer))?,
+        }
+    }
+}
+
 pub(crate) struct Candidate{
     voted_for: Option<Address>,
     rebel: Rebel,
+    vote_counter: VoteCounter,
 }
 impl Candidate {
+    pub(crate) fn new(asgard_data: &mut AsgardData) -> Result<Self,AsgardError> {
+        let vote_counter = VoteCounter::new(asgard_data.get_active_peers()?);
+        Ok(Self {
+            voted_for: None,
+            rebel: Rebel::new(),
+            vote_counter,
+        })
+    }
     pub(crate) fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         let break_flag = match asgardian_message {
             AsgardianMessage::LeaderSync(leader_sync) => Candidate::handle_leader_sync(role,asgard_data,leader_sync,sender)?,
