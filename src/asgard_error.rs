@@ -42,7 +42,7 @@ impl UnknownPeerError {
         }
     }
     fn get_error_string(context:String,peer:Address)->String {
-        let s = format!("{}: Peer - {:#?} was not found",context.as_str(),peer);
+        let s = format!("{}: Peer - {} was not found",context.as_str(),peer);
         s
     }
 }

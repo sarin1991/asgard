@@ -186,7 +186,9 @@ impl Candidate {
         Ok(break_flag)
     }
     fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let candidate = Candidate::get_variant(role)?;
+        candidate.vote_counter.add_vote(sender)?;
+        Ok(false)
     }
     fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
