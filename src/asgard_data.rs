@@ -4,7 +4,7 @@ use crate::transport::Address;
 use crate::transport::TransportChannel;
 use crate::log::{CommittedLog,UncommittedLog};
 use crate::asgard_error::{AsgardError,ProtobufParsingError};
-use crate::messages::AsgardianMessage;
+use crate::messages::{AsgardianMessage,Message};
 
 pub(crate) struct AsgardData {
     pub(crate) term:u64,
@@ -44,11 +44,14 @@ impl AsgardData {
         }
         Ok(peers)
     }
-    pub(crate) fn send_asgardian_message(&self,message:AsgardianMessage,address:Address)->Result<(),AsgardError>{
+    pub(crate) async fn send_asgardian_message(&self,message:AsgardianMessage,address:Address)->Result<(),AsgardError>{
         let tx = self.transport_channel.outbound_asgardian_message_sender.clone();
-        let _send_task = tokio::spawn(async move {
-            tx.send((message,address)).await
-        });
+        tx.send((message,address)).await?;
+        Ok(())
+    }
+    pub(crate) async fn repeat_message(&self,message:Message,address:Address)->Result<(),AsgardError>{
+        let tx = self.transport_channel.inbound_message_sender.clone();
+        tx.send((message,address)).await?;
         Ok(())
     }
 }

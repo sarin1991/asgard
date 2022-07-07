@@ -1,5 +1,5 @@
 use tokio;
-use crate::messages::Message;
+use crate::messages::{Message, AsgardianMessage};
 use crate::transport::Address;
 use tokio::task::JoinError;
 use std::{error::Error, fmt};
@@ -106,7 +106,9 @@ pub(crate) enum AsgardError {
     #[error("transparent")]
     JoinError(#[from] JoinError),
     #[error("transparent")]
-    SendError(#[from] tokio::sync::mpsc::error::SendError<(Message,Address)>),
+    SendMessageError(#[from] tokio::sync::mpsc::error::SendError<(Message,Address)>),
+    #[error("transparent")]
+    SendAsgardianMessageError(#[from] tokio::sync::mpsc::error::SendError<(AsgardianMessage,Address)>),
     #[error("transparent")]
     InconsistentRoleError(#[from] InconsistentRoleError),
     #[error("transparent")]

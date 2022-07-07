@@ -43,14 +43,14 @@ impl Asgardian{
     fn increment_term(&mut self){
         panic!("unimplemented!");
     }
-    fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
+    async fn handle_asgardian_message(&mut self,asgardian_message:AsgardianMessage,sender:Address)->Result<bool,AsgardError>{
         if asgardian_message.is_lower_term(self.asgard_data.term){
             return Ok(false);
         }
         if asgardian_message.is_higher_term(self.asgard_data.term){
             self.increment_term();
         }
-        let break_flag = Role::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender)?;
+        let break_flag = Role::handle_asgardian_message(&mut self.role,&mut self.asgard_data,asgardian_message,sender).await?;
         Ok(break_flag)
     }
     fn handle_api_message(&mut self,api_message:APIMessage,sender:Address)->Result<bool,AsgardError>{
@@ -59,10 +59,9 @@ impl Asgardian{
     async fn start(&mut self)->Result<(),AsgardError>{
         let task1 = tokio::spawn(Asgardian::asgard_election_timer(self.asgard_data.transport_channel.inbound_message_sender.clone()));
         let task2 = tokio::spawn(Asgardian::asgard_message_timer(self.asgard_data.transport_channel.inbound_message_sender.clone()));
-        loop{
-            let (message,address) = self.asgard_data.transport_channel.inbound_message_receiver.recv().await.unwrap();
+        while let Some((message,address)) = self.asgard_data.transport_channel.inbound_message_receiver.recv().await {
             let break_flag = match message {
-                Message::AsgardianMessage(asgardian_message) => self.handle_asgardian_message(asgardian_message, address)?,
+                Message::AsgardianMessage(asgardian_message) => self.handle_asgardian_message(asgardian_message, address).await?,
                 Message::APIMessage(api_message) => self.handle_api_message(api_message, address)?,
             };
             if !break_flag {
