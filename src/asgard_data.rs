@@ -45,8 +45,9 @@ impl AsgardData {
         Ok(peers)
     }
     pub(crate) fn send_asgardian_message(&self,message:AsgardianMessage,address:Address)->Result<(),AsgardError>{
-        let send_task = tokio::spawn(async {
-            self.transport_channel.outbound_asgardian_message_sender.send((message,address)).await;
+        let tx = self.transport_channel.outbound_asgardian_message_sender.clone();
+        let _send_task = tokio::spawn(async move {
+            tx.send((message,address)).await
         });
         Ok(())
     }

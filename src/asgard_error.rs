@@ -81,21 +81,23 @@ impl Error for ProtobufParsingError {
 
 #[derive(Debug)]
 pub(crate) struct AddressSerializationError{
+    error_string:String,
 }
 impl AddressSerializationError {
     pub(crate) fn new() -> Self {
         Self {
+            error_string:"Unable to convert Address to String".to_owned(),
         }
     }
 }
 impl fmt::Display for AddressSerializationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Unable to convert Address to String")
+        write!(f, "{}",self.error_string)
     }
 }
 impl Error for AddressSerializationError {
     fn description(&self) -> &str {
-        "Unable to convert Address to String".to_owned().as_str()
+        &self.error_string
     }
 }
 
