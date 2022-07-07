@@ -191,7 +191,29 @@ impl Candidate {
         Ok(false)
     }
     fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let candidate = Candidate::get_variant(role)?;
+        let mut vote_response = VoteResponse::default();
+        vote_response.candidate_id = sender.to_string();
+        vote_response.term = asgard_data.term;
+        let message = AsgardianMessage::VoteResponse(vote_response);
+        if let Some(voted_for) = &candidate.voted_for {
+            if *voted_for==sender{
+                asgard_data.send_asgardian_message(message, sender);
+            }
+        }
+        else {
+            if vote_request.last_log_index_term>asgard_data.last_log_index_term {
+                asgard_data.send_asgardian_message(message, sender.clone());
+                candidate.voted_for = Some(sender);
+            }
+            else if vote_request.last_log_index_term==asgard_data.last_log_index_term{
+                if vote_request.last_log_index>asgard_data.last_log_index {
+                    asgard_data.send_asgardian_message(message, sender.clone());
+                    candidate.voted_for = Some(sender);
+                }
+            }
+        }
+        Ok(false)
     }
     fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");

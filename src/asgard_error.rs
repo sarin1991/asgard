@@ -79,6 +79,26 @@ impl Error for ProtobufParsingError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct AddressSerializationError{
+}
+impl AddressSerializationError {
+    pub(crate) fn new() -> Self {
+        Self {
+        }
+    }
+}
+impl fmt::Display for AddressSerializationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Unable to convert Address to String")
+    }
+}
+impl Error for AddressSerializationError {
+    fn description(&self) -> &str {
+        "Unable to convert Address to String".to_owned().as_str()
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -91,4 +111,6 @@ pub(crate) enum AsgardError {
     UnknownPeerError(#[from] UnknownPeerError),
     #[error("transparent")]
     ProtobufParsingError(#[from] ProtobufParsingError),
+    #[error("transparent")]
+    AddressSerializationError(#[from] AddressSerializationError),
 }

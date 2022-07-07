@@ -1,13 +1,23 @@
 use tokio::sync::mpsc::{Sender,Receiver};
 use tokio::task;
+use crate::asgard_error::{AsgardError,AddressSerializationError};
 use crate::messages::{APIMessage,AsgardianMessage,Message};
 use std::cmp::{Eq,PartialEq};
+use std::ops::Add;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub(crate) enum Address{
     IP(String),
     Broadcast,
     Local,
+}
+impl Address {
+    fn to_string(&self) -> Result<String,AsgardError> {
+        match self {
+            Address::IP(string) => Ok(string.clone()),
+            _ => Err(AddressSerializationError::new())?,
+        }
+    }
 }
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

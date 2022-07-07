@@ -4,10 +4,12 @@ use crate::transport::Address;
 use crate::transport::TransportChannel;
 use crate::log::{CommittedLog,UncommittedLog};
 use crate::asgard_error::{AsgardError,ProtobufParsingError};
+use crate::messages::AsgardianMessage;
 
 pub(crate) struct AsgardData {
     pub(crate) term:u64,
-    pub(crate) latest_log_index:u64,
+    pub(crate) last_log_index:u64,
+    pub(crate) last_log_index_term:u64,
     pub(crate) commit_index:u64,
     pub(crate) transport_channel:TransportChannel,
     pub(crate) uncommmitted_log:UncommittedLog,
@@ -18,7 +20,8 @@ impl AsgardData {
     pub(crate) fn new(transport_channel:TransportChannel)->Self{
         Self {
             term:0,
-            latest_log_index:0,
+            last_log_index:0,
+            last_log_index_term:0,
             commit_index:0,
             transport_channel,
             uncommmitted_log:UncommittedLog::new(),
@@ -40,5 +43,11 @@ impl AsgardData {
             }
         }
         Ok(peers)
+    }
+    pub(crate) fn send_asgardian_message(&self,message:AsgardianMessage,address:Address)->Result<(),AsgardError>{
+        let send_task = tokio::spawn(async {
+            self.transport_channel.outbound_asgardian_message_sender.send((message,address)).await;
+        });
+        Ok(())
     }
 }
