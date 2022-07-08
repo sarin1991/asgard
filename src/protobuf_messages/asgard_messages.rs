@@ -1,10 +1,26 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Ipv4Address {
+    #[prost(uint32, tag="1")]
+    pub address1: u32,
+    #[prost(uint32, tag="2")]
+    pub address2: u32,
+    #[prost(uint32, tag="3")]
+    pub address3: u32,
+    #[prost(uint32, tag="4")]
+    pub address4: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SocketAddress {
+    #[prost(message, optional, tag="1")]
+    pub ipv4_address: ::core::option::Option<Ipv4Address>,
+    #[prost(uint32, tag="2")]
+    pub port: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Peer {
-    #[prost(string, tag="1")]
-    pub peer_id: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub endpoint: ::prost::alloc::string::String,
-    #[prost(enumeration="PeerState", tag="3")]
+    #[prost(message, optional, tag="1")]
+    pub socket_address: ::core::option::Option<SocketAddress>,
+    #[prost(enumeration="PeerState", tag="2")]
     pub peer: i32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]

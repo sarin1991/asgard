@@ -4,6 +4,7 @@ use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,As
 use tokio;
 use tokio::sync::mpsc::{Sender,Receiver};
 use std::collections::BinaryHeap;
+use std::net::SocketAddr;
 use std::sync::mpsc::SendError;
 use std::time::{Instant,Duration};
 use crate::asgard_error::AsgardError;
@@ -14,9 +15,9 @@ struct Asgardian {
     role: Role,
 }
 impl Asgardian{
-    fn new(transport_channel:TransportChannel)->Self{
+    fn new(transport_channel:TransportChannel,address:SocketAddr)->Self{
         Self {
-            asgard_data: AsgardData::new(transport_channel),
+            asgard_data: AsgardData::new(transport_channel,address),
             role: Role::new(),
         }
     }

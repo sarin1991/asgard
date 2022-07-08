@@ -3,18 +3,18 @@ use tokio::task;
 use crate::asgard_error::{AsgardError,AddressSerializationError};
 use crate::messages::{APIMessage,AsgardianMessage,Message};
 use std::cmp::{Eq,PartialEq};
-use std::ops::Add;
+use std::net::SocketAddr;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub(crate) enum Address{
-    IP(String),
+    IP(SocketAddr),
     Broadcast,
     Local,
 }
 impl Address {
     fn to_string(&self) -> Result<String,AsgardError> {
         match self {
-            Address::IP(string) => Ok(string.clone()),
+            Address::IP(socket_address) => Ok(socket_address.to_string()),
             _ => Err(AddressSerializationError::new())?,
         }
     }

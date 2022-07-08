@@ -10,10 +10,21 @@ enum PeerState{
     EXILE=2;
 }
 
+message IPV4Address{
+    uint32 address1=1;
+    uint32 address2=2;
+    uint32 address3=3;
+    uint32 address4=4;
+}
+
+message SocketAddress{
+    IPV4Address ipv4_address=1;
+    uint32 port=2;
+}
+
 message Peer{
-    string peer_id=1;
-    string endpoint=2;
-    PeerState peer=3;
+    SocketAddress socket_address=1;
+    PeerState peer=2;
 }
 
 message AsgardPeerInfo{

@@ -2,6 +2,7 @@ use tokio;
 use crate::messages::{Message, AsgardianMessage};
 use crate::transport::Address;
 use tokio::task::JoinError;
+use std::net::SocketAddr;
 use std::{error::Error, fmt};
 use thiserror::Error;
 
@@ -36,12 +37,12 @@ pub(crate) struct UnknownPeerError{
     error_string:String,
 }
 impl UnknownPeerError {
-    pub(crate) fn new(context:String,peer:Address) -> Self {
+    pub(crate) fn new(context:String,peer:SocketAddr) -> Self {
         Self {
             error_string: Self::get_error_string(context,peer),
         }
     }
-    fn get_error_string(context:String,peer:Address)->String {
+    fn get_error_string(context:String,peer:SocketAddr)->String {
         let s = format!("{}: Peer - {} was not found",context.as_str(),peer);
         s
     }
@@ -101,6 +102,28 @@ impl Error for AddressSerializationError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct UnexpectedAddressVariantError{
+    error_string:String,
+}
+impl UnexpectedAddressVariantError {
+    pub(crate) fn new(expected_variant:String,actual_variant:String) -> Self {
+        Self {
+            error_string:format!("Unexpected Address Variant error: Expected address variant {}, but got variant {}",expected_variant,actual_variant).to_owned(),
+        }
+    }
+}
+impl fmt::Display for UnexpectedAddressVariantError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for UnexpectedAddressVariantError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -117,4 +140,6 @@ pub(crate) enum AsgardError {
     ProtobufParsingError(#[from] ProtobufParsingError),
     #[error("transparent")]
     AddressSerializationError(#[from] AddressSerializationError),
+    #[error("transparent")]
+    UnexpectedAddressVariantError(#[from] UnexpectedAddressVariantError),
 }
