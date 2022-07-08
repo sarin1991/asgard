@@ -1,19 +1,56 @@
 use std::collections::{VecDeque, HashMap};
+use std::net::SocketAddr;
 
-use crate::asgard_data::AsgardData;
-use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError};
+use crate::asgard_data::{AsgardData, self};
+use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
     VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 use crate::transport::{TransportChannel,Address};
 
-pub(crate)  struct Rebel{
+struct PeerVote {
+    address:SocketAddr,
+    received_vote:bool,
+}
+impl PeerVote {
+    fn new(address:SocketAddr) -> Self {
+        Self { 
+            address,
+            received_vote:false,
+        }
+    }
+    fn set_vote(&mut self) {
+        self.received_vote = true;
+    }
+}
 
+pub(crate)  struct Rebel{
+    rebel_flag:bool,
+    node_vote_map: HashMap<SocketAddr,PeerVote>,
 }
 impl Rebel {
-    fn new() -> Self {
-        Self {  
+    fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
+        let peers = asgard_data.get_active_peers()?;
+        let mut node_vote_map:HashMap<SocketAddr,PeerVote> = HashMap::new();
+        for peer in peers {
+            node_vote_map.insert(peer.clone(),PeerVote::new(peer));
+        }
+        //add self
+        node_vote_map.insert(asgard_data.address.clone(),PeerVote::new(asgard_data.address.clone()));
+        Ok(Self {
+            rebel_flag:false,
+            node_vote_map,
+        })
+    }
+    fn is_rebel(&self) -> bool{
+        self.rebel_flag
+    }
+    fn add_rebel(&mut self,address:SocketAddr) -> Result<(),AsgardError> {
+        let peer_vote_option = self.node_vote_map.get_mut(&address);
+        match peer_vote_option {
+            Some(peer_vote) => Ok(peer_vote.set_vote()),
+            None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), address))?,
         }
     }
 }
@@ -51,54 +88,41 @@ pub(crate) struct Follower{
     leader_message_queue: LeaderMessageQueue,
 }
 impl Follower {
-    fn new(leader: Option<Address>,voted_for: Address) -> Self {
-        Self {
+    fn new(leader: Option<Address>,voted_for: Address,asgard_data:&AsgardData) -> Result<Self,AsgardError> {
+        Ok(Self {
             leader,
             voted_for,
             initialization_flag:false,
-            rebel:Rebel::new(),
+            rebel:Rebel::new(asgard_data)?,
             leader_message_queue: LeaderMessageQueue::new(),
-        }
+        })
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
     }
 }
 
-struct PeerVote {
-    address:Address,
-    received_vote:bool,
-}
-impl PeerVote {
-    fn new(address:Address) -> Self {
-        Self { 
-            address,
-            received_vote:false,
-        }
-    }
-    fn set_vote(&mut self) {
-        self.received_vote = true;
-    }
-}
-
 struct VoteCounter {
-    peer_vote_map: HashMap<Address,PeerVote>,
+    node_vote_map: HashMap<SocketAddr,PeerVote>,
 }
 impl VoteCounter {
-    fn new(peers:Vec<Address>) -> Self {
-        let mut peer_vote_map:HashMap<Address,PeerVote> = HashMap::new();
+    fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
+        let peers = asgard_data.get_active_peers()?;
+        let mut node_vote_map:HashMap<SocketAddr,PeerVote> = HashMap::new();
         for peer in peers {
-            peer_vote_map.insert(peer.clone(),PeerVote::new(peer));
+            node_vote_map.insert(peer.clone(),PeerVote::new(peer));
         }
-        Self { 
-            peer_vote_map
-        }
+        //add self
+        node_vote_map.insert(asgard_data.address.clone(),PeerVote::new(asgard_data.address.clone()));
+        Ok(Self { 
+            node_vote_map
+        })
     }
     fn got_majority(&self)->bool{
         let mut total = 0u32;
         let mut votes_granted = 0u32;
-        for (peer,peer_vote) in self.peer_vote_map.iter() {
-            if peer_vote.received_vote {
+        for (node,node_vote) in self.node_vote_map.iter() {
+            if node_vote.received_vote {
                 votes_granted = votes_granted+1;
             }
             total=total+1;
@@ -110,8 +134,8 @@ impl VoteCounter {
             false
         }
     }
-    fn add_vote(&mut self, peer: Address) -> Result<(),AsgardError>{
-        let peer_vote_option = self.peer_vote_map.get_mut(&peer);
+    fn add_vote(&mut self, peer: SocketAddr) -> Result<(),AsgardError>{
+        let peer_vote_option = self.node_vote_map.get_mut(&peer);
         match peer_vote_option {
             Some(peer_vote) => Ok(peer_vote.set_vote()),
             None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), peer))?,
@@ -126,10 +150,10 @@ pub(crate) struct Candidate{
 }
 impl Candidate {
     pub(crate) fn new(asgard_data: &mut AsgardData) -> Result<Self,AsgardError> {
-        let vote_counter = VoteCounter::new(asgard_data.get_active_peers()?);
+        let vote_counter = VoteCounter::new(asgard_data)?;
         Ok(Self {
             voted_for: None,
-            rebel: Rebel::new(),
+            rebel: Rebel::new(asgard_data)?,
             vote_counter,
         })
     }
@@ -160,8 +184,8 @@ impl Candidate {
         *role = Role::Leader(leader);
         Ok(())
     }
-    fn to_follower(role: &mut Role,leader: Option<Address>,voted_for: Address) -> Result<(),AsgardError> {
-        let follower = Follower::new(leader,voted_for);
+    fn to_follower(role: &mut Role,leader: Option<Address>,voted_for: Address,asgard_data:&AsgardData) -> Result<(),AsgardError> {
+        let follower = Follower::new(leader,voted_for,asgard_data)?;
         *role = Role::Follower(follower);
         Ok(())
     }
@@ -171,7 +195,7 @@ impl Candidate {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
-        Candidate::to_follower(role, Some(sender.clone()), voted_for)?;
+        Candidate::to_follower(role, Some(sender.clone()), voted_for, asgard_data)?;
         let message = Message::AsgardianMessage(AsgardianMessage::LeaderSync(leader_sync));
         asgard_data.repeat_message(message, sender).await?;
         Ok(false)
@@ -182,14 +206,18 @@ impl Candidate {
             Some(previous_voted) => previous_voted,
             None => sender.clone(),
         };
-        Candidate::to_follower(role, Some(sender.clone()), voted_for)?;
+        Candidate::to_follower(role, Some(sender.clone()), voted_for, asgard_data)?;
         let message = Message::AsgardianMessage(AsgardianMessage::LeaderHeartbeat(leader_heartbeat));
         asgard_data.repeat_message(message, sender).await?;
         Ok(false)
     }
     async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
-        candidate.vote_counter.add_vote(sender)?;
+        match sender {
+            Address::IP(socket_address) => candidate.vote_counter.add_vote(socket_address)?,
+            Address::Local => candidate.vote_counter.add_vote(asgard_data.address.clone())?,
+            Address::Broadcast => Err(UnexpectedAddressVariantError::new("IP or Local".to_owned(),"Broadcast".to_owned()))?,
+        };
         Ok(false)
     }
     async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
