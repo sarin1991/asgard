@@ -255,7 +255,16 @@ impl Candidate {
         Ok(false)
     }
     async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let candidate = Candidate::get_variant(role)?;
+        if candidate.rebel.is_rebel() {
+            let mut rebellion_response = RebellionResponse::default();
+            rebellion_response.term = asgard_data.term;
+            rebellion_response.vote_granted = true;
+            rebellion_response.peer_id = asgard_data.address.to_string();
+            let asgardian_message = AsgardianMessage::RebellionResponse(rebellion_response);
+            asgard_data.send_asgardian_message(asgardian_message, sender).await?;
+        }
+        Ok(false)
     }
     async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
