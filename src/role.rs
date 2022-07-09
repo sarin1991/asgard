@@ -25,11 +25,10 @@ impl PeerVote {
     }
 }
 
-pub(crate)  struct Rebel{
-    rebel_flag:bool,
+struct VoteCounter {
     node_vote_map: HashMap<SocketAddr,PeerVote>,
 }
-impl Rebel {
+impl VoteCounter {
     fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
         let peers = asgard_data.get_active_peers()?;
         let mut node_vote_map:HashMap<SocketAddr,PeerVote> = HashMap::new();
@@ -38,20 +37,54 @@ impl Rebel {
         }
         //add self
         node_vote_map.insert(asgard_data.address.clone(),PeerVote::new(asgard_data.address.clone()));
+        Ok(Self { 
+            node_vote_map
+        })
+    }
+    fn got_majority(&self)->bool{
+        let mut total = 0u32;
+        let mut votes_granted = 0u32;
+        for (node,node_vote) in self.node_vote_map.iter() {
+            if node_vote.received_vote {
+                votes_granted = votes_granted+1;
+            }
+            total=total+1;
+        }
+        if (votes_granted as f64) > (0.5 *total as f64) {
+            true
+        }
+        else {
+            false
+        }
+    }
+    fn add_vote(&mut self, peer: SocketAddr) -> Result<(),AsgardError>{
+        let peer_vote_option = self.node_vote_map.get_mut(&peer);
+        match peer_vote_option {
+            Some(peer_vote) => Ok(peer_vote.set_vote()),
+            None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), peer))?,
+        }
+    }
+}
+
+pub(crate)  struct Rebel{
+    rebel_flag:bool,
+    vote_counter: VoteCounter,
+}
+impl Rebel {
+    fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
         Ok(Self {
             rebel_flag:false,
-            node_vote_map,
+            vote_counter:VoteCounter::new(asgard_data)?,
         })
     }
     fn is_rebel(&self) -> bool{
         self.rebel_flag
     }
     fn add_rebel(&mut self,address:SocketAddr) -> Result<(),AsgardError> {
-        let peer_vote_option = self.node_vote_map.get_mut(&address);
-        match peer_vote_option {
-            Some(peer_vote) => Ok(peer_vote.set_vote()),
-            None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), address))?,
-        }
+        self.vote_counter.add_vote(address)
+    }
+    fn is_rebellion_success(&self) -> bool {
+        self.vote_counter.got_majority()
     }
 }
 
@@ -99,47 +132,6 @@ impl Follower {
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
-    }
-}
-
-struct VoteCounter {
-    node_vote_map: HashMap<SocketAddr,PeerVote>,
-}
-impl VoteCounter {
-    fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
-        let peers = asgard_data.get_active_peers()?;
-        let mut node_vote_map:HashMap<SocketAddr,PeerVote> = HashMap::new();
-        for peer in peers {
-            node_vote_map.insert(peer.clone(),PeerVote::new(peer));
-        }
-        //add self
-        node_vote_map.insert(asgard_data.address.clone(),PeerVote::new(asgard_data.address.clone()));
-        Ok(Self { 
-            node_vote_map
-        })
-    }
-    fn got_majority(&self)->bool{
-        let mut total = 0u32;
-        let mut votes_granted = 0u32;
-        for (node,node_vote) in self.node_vote_map.iter() {
-            if node_vote.received_vote {
-                votes_granted = votes_granted+1;
-            }
-            total=total+1;
-        }
-        if (votes_granted as f64) > (0.5 *total as f64) {
-            true
-        }
-        else {
-            false
-        }
-    }
-    fn add_vote(&mut self, peer: SocketAddr) -> Result<(),AsgardError>{
-        let peer_vote_option = self.node_vote_map.get_mut(&peer);
-        match peer_vote_option {
-            Some(peer_vote) => Ok(peer_vote.set_vote()),
-            None => Err(UnknownPeerError::new("Expected peer not found while adding vote".to_owned(), peer))?,
-        }
     }
 }
 
@@ -246,7 +238,21 @@ impl Candidate {
         Ok(false)
     }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let candidate = Candidate::get_variant(role)?;
+        if candidate.rebel.is_rebel() {
+            //Only taking action if node is rebel
+            let rebel = &mut candidate.rebel;
+            match sender {
+                Address::IP(socket_address) => rebel.add_rebel(socket_address)?,
+                Address::Local => rebel.add_rebel(asgard_data.address.clone())?,
+                Address::Broadcast => Err(UnexpectedAddressVariantError::new("IP or Local".to_owned(),"Broadcast".to_owned()))?,
+            };
+            if rebel.is_rebellion_success(){
+                //Rebellion succeeded so can increment term
+                Role::increment_term(role, asgard_data).await?;
+            }
+        }
+        Ok(false)
     }
     async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
@@ -318,5 +324,8 @@ impl Role {
             Role::Exile(_) => Exile::handle_asgardian_message(role,asgard_data,asgardian_message,sender).await?,
         };
         Ok(break_flag)
+    }
+    pub(crate) async fn increment_term(role: &mut Role,asgard_data: &mut AsgardData) -> Result<(),AsgardError> {
+        panic!("Unimplemented!");
     }
 }
