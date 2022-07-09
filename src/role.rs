@@ -220,17 +220,17 @@ impl Candidate {
         let message = AsgardianMessage::VoteResponse(vote_response);
         if let Some(voted_for) = &candidate.voted_for {
             if *voted_for==sender{
-                asgard_data.send_asgardian_message(message, sender);
+                asgard_data.send_asgardian_message(message, sender).await?;
             }
         }
         else {
             if vote_request.last_log_index_term>asgard_data.last_log_index_term {
-                asgard_data.send_asgardian_message(message, sender.clone());
+                asgard_data.send_asgardian_message(message, sender.clone()).await?;
                 candidate.voted_for = Some(sender);
             }
             else if vote_request.last_log_index_term==asgard_data.last_log_index_term{
                 if vote_request.last_log_index>asgard_data.last_log_index {
-                    asgard_data.send_asgardian_message(message, sender.clone());
+                    asgard_data.send_asgardian_message(message, sender.clone()).await?;
                     candidate.voted_for = Some(sender);
                 }
             }
