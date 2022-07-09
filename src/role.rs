@@ -239,7 +239,7 @@ impl Candidate {
     }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
-        if candidate.rebel.is_rebel() {
+        if candidate.rebel.is_rebel() & rebellion_response.vote_granted {
             //Only taking action if node is rebel
             let rebel = &mut candidate.rebel;
             match sender {
