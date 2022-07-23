@@ -38,10 +38,11 @@ message AsgardSystemMessage{
 }
 
 message AsgardLogMessage{
-    uint64 log_index=1;
+    uint64 term=1;
+    uint64 log_index=2;
     oneof message{
-        google.protobuf.Any user_message=2;
-        AsgardSystemMessage system_message=3;
+        google.protobuf.Any user_message=3;
+        AsgardSystemMessage system_message=4;
     }
 }
 

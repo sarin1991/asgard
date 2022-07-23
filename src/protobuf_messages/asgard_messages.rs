@@ -44,17 +44,19 @@ pub mod asgard_system_message {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AsgardLogMessage {
     #[prost(uint64, tag="1")]
+    pub term: u64,
+    #[prost(uint64, tag="2")]
     pub log_index: u64,
-    #[prost(oneof="asgard_log_message::Message", tags="2, 3")]
+    #[prost(oneof="asgard_log_message::Message", tags="3, 4")]
     pub message: ::core::option::Option<asgard_log_message::Message>,
 }
 /// Nested message and enum types in `AsgardLogMessage`.
 pub mod asgard_log_message {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Message {
-        #[prost(message, tag="2")]
-        UserMessage(::prost_types::Any),
         #[prost(message, tag="3")]
+        UserMessage(::prost_types::Any),
+        #[prost(message, tag="4")]
         SystemMessage(super::AsgardSystemMessage),
     }
 }
