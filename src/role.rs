@@ -231,14 +231,14 @@ impl Candidate {
         let message = AsgardianMessage::VoteResponse(vote_response);
         if !candidate.voted_for_self {
             //Candidate hasn't voted for self yet so is open to agreeing to new leader
-            if vote_request.last_log_index_term>asgard_data.last_log_index_term {
+            if vote_request.last_log_index_term>asgard_data.get_last_log_index_term() {
                 //Requester has log messages with higher term so accept his request to be leader
                 asgard_data.send_asgardian_message(message, sender.clone()).await?;
                 //Switch to follower since we voted for another node. So no longer a candidate
                 Candidate::to_follower(role, Some(sender.clone()), sender.clone(), asgard_data)?;
             }
-            else if vote_request.last_log_index_term==asgard_data.last_log_index_term{
-                if vote_request.last_log_index>=asgard_data.last_log_index {
+            else if vote_request.last_log_index_term==asgard_data.get_last_log_index_term(){
+                if vote_request.last_log_index>=asgard_data.get_last_log_index() {
                     //Requester has log messages with same term as node but log index is as high or higher than node
                     //so accept his request to be leader
                     asgard_data.send_asgardian_message(message, sender.clone()).await?;
@@ -300,8 +300,8 @@ impl Candidate {
         let mut vote_request = VoteRequest::default();
         vote_request.term = asgard_data.term;
         vote_request.candidate_id = asgard_data.address.to_string();
-        vote_request.last_log_index = asgard_data.last_log_index;
-        vote_request.last_log_index_term = asgard_data.last_log_index_term;
+        vote_request.last_log_index = asgard_data.get_last_log_index();
+        vote_request.last_log_index_term = asgard_data.get_last_log_index_term();
         let message = AsgardianMessage::VoteRequest(vote_request);
         let peers = asgard_data.get_active_peers()?;
         for peer in peers.iter() {

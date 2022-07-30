@@ -11,8 +11,6 @@ use crate::messages::{AsgardianMessage,Message};
 pub(crate) struct AsgardData {
     pub(crate) address:SocketAddr,
     pub(crate) term:u64,
-    pub(crate) last_log_index:u64,
-    pub(crate) last_log_index_term:u64,
     pub(crate) commit_index:u64,
     pub(crate) transport_channel:TransportChannel,
     pub(crate) uncommmitted_log:UncommittedLog,
@@ -24,8 +22,6 @@ impl AsgardData {
         Self {
             address,
             term:0,
-            last_log_index:0,
-            last_log_index_term:0,
             commit_index:0,
             transport_channel,
             uncommmitted_log:UncommittedLog::new(),
@@ -85,5 +81,19 @@ impl AsgardData {
         let tx = self.transport_channel.inbound_message_sender.clone();
         tx.send((message,address)).await?;
         Ok(())
+    }
+    pub(crate) fn get_last_log_index(&self)->u64 {
+        let uncommitted_last_log_index_option = self.uncommmitted_log.get_last_log_index();
+        match uncommitted_last_log_index_option {
+            Some(uncommitted_last_log_index) => uncommitted_last_log_index,
+            None => self.committed_log.get_last_log_index(),
+        }
+    }
+    pub(crate) fn get_last_log_index_term(&self)->u64{
+        let uncommitted_last_log_index_term_option = self.uncommmitted_log.get_last_log_index_term();
+        match uncommitted_last_log_index_term_option {
+            Some(uncommitted_last_log_index_term) => uncommitted_last_log_index_term,
+            None => self.committed_log.get_last_log_index_term(),
+        }
     }
 }
