@@ -1,7 +1,7 @@
 use std::collections::{VecDeque, HashMap};
 use std::net::SocketAddr;
 
-use crate::asgard_data::AsgardData;
+use crate::asgard_data::{AsgardData, self};
 use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
@@ -94,15 +94,58 @@ impl Rebel {
     }
 }
 
-pub(crate) struct Leader{
+struct FollowerReplicatedLogIndex {
+    node_log_index_hash_map: HashMap<SocketAddr,u64>,
+}
+impl FollowerReplicatedLogIndex {
+    fn new(asgard_data:&AsgardData) -> Result<Self,AsgardError> {
+        let peers = asgard_data.get_active_peers()?;
+        let mut node_log_index_hash_map:HashMap<SocketAddr,u64> = HashMap::new();
+        let initial_log_index = asgard_data.get_last_log_index();
+        for peer in peers {
+            node_log_index_hash_map.insert(peer,initial_log_index);
+        }
+        //add self
+        node_log_index_hash_map.insert(asgard_data.address.clone(),initial_log_index);
+        Ok(Self { 
+            node_log_index_hash_map
+        })
+    }
+    fn get_commit_safe_index(&self) -> u64{
+        let mut log_indexes = vec![];
+        for (node,log_index) in self.node_log_index_hash_map.iter() {
+            log_indexes.push(log_index);
+        }
+        log_indexes.sort();
+        let mid = log_indexes.len() / 2;
+        *log_indexes[mid]
+    }
+    fn update_node_log_index(&mut self,node:SocketAddr,log_index:u64) -> Result<(),AsgardError>{
+        let log_index_option = self.node_log_index_hash_map.get_mut(&node);
+        match log_index_option {
+            Some(mut_log_index) => {
+                if *mut_log_index>log_index{
+                    println!("Index not updated because given log index is lower than old one!");
+                }
+                else {
+                    *mut_log_index = log_index;
+                }
+                Ok(())
+            },
+            None => Err(UnknownPeerError::new("Expected peer not found while updating node log index".to_owned(),node))?,
+        }
+    }
+}
 
+pub(crate) struct Leader{
+    follower_replicated_log_index: FollowerReplicatedLogIndex,
 }
 
 impl Leader {
-    fn new() -> Self {
-        Self {  
-
-        }
+    fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
+        Ok(Self {  
+            follower_replicated_log_index: FollowerReplicatedLogIndex::new(asgard_data)?,
+        })
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
@@ -177,8 +220,8 @@ impl Candidate {
         };
         Ok(candidate)
     }
-    fn to_leader(role: &mut Role) ->Result<(),AsgardError> {
-        let leader = Leader::new();
+    fn to_leader(role: &mut Role,asgard_data:&AsgardData) ->Result<(),AsgardError> {
+        let leader = Leader::new(asgard_data)?;
         *role = Role::Leader(leader);
         panic!("Not Completed!");
         Ok(())
@@ -219,7 +262,7 @@ impl Candidate {
         };
         if candidate.vote_counter.got_majority() {
             //Candidate is now leader
-            Candidate::to_leader(role)?;
+            Candidate::to_leader(role,asgard_data)?;
         }
         Ok(false)
     }
