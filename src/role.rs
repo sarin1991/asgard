@@ -2,7 +2,7 @@ use std::collections::{VecDeque, HashMap};
 use std::net::SocketAddr;
 
 use crate::asgard_data::{AsgardData, self};
-use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError};
+use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError, InconsistentStateError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
 use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
@@ -109,12 +109,24 @@ impl FollowerInfo {
             socket_address,
         }
     }
-    fn update_uncommitted_log_index(&mut self,log_index:u64) -> Result<(),AsgardError>{
+    fn update_uncommitted_log_index(&mut self,log_index:u64) -> (){
         if log_index>self.uncommitted_log_index {
             self.uncommitted_log_index = log_index;
         }
         else {
             println!("Index not updated because given log index is lower than old one!");
+        }
+    }
+    fn update_committed_log_index(&mut self,log_index:u64) -> Result<(),AsgardError> {
+        if log_index>self.uncommitted_log_index {
+            let error = InconsistentStateError::new("Trying to update follower's commited log index to be higher than committed log index".to_owned());
+            return Err(AsgardError::InconsistentStateError(error));
+        }
+        else if log_index> self.committed_log_index{
+            self.committed_log_index = log_index;
+        }
+        else {
+            println!("Committed Log Index not updated because given log index is lower than old one!");
         }
         Ok(())
     }
@@ -152,7 +164,8 @@ impl Leader {
         let log_index_option = self.follower_info_hash_map.get_mut(&node);
         match log_index_option {
             Some(follower_info) => {
-                follower_info.update_uncommitted_log_index(log_index)
+                follower_info.update_uncommitted_log_index(log_index);
+                Ok(())
             },
             None => Err(UnknownPeerError::new("Expected peer not found while updating node log index".to_owned(),node))?,
         }

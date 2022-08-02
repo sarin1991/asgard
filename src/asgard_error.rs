@@ -124,6 +124,28 @@ impl Error for UnexpectedAddressVariantError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct InconsistentStateError{
+    error_string:String,
+}
+impl InconsistentStateError {
+    pub(crate) fn new(error_string:String) -> Self {
+        Self {
+            error_string:format!("InconsistentStateError! - {}",error_string).to_owned(),
+        }
+    }
+}
+impl fmt::Display for InconsistentStateError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for InconsistentStateError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -142,4 +164,6 @@ pub(crate) enum AsgardError {
     AddressSerializationError(#[from] AddressSerializationError),
     #[error("transparent")]
     UnexpectedAddressVariantError(#[from] UnexpectedAddressVariantError),
+    #[error("transparent")]
+    InconsistentStateError(#[from] InconsistentStateError),
 }
