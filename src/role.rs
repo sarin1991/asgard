@@ -130,6 +130,9 @@ impl FollowerInfo {
         }
         Ok(())
     }
+    fn set_initialization_flag(&mut self) {
+        self.initialization_flag = true;
+    }
 }
 
 pub(crate) struct Leader{
