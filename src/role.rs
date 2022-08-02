@@ -94,58 +94,68 @@ impl Rebel {
     }
 }
 
-struct FollowerReplicatedLogIndex {
-    node_log_index_hash_map: HashMap<SocketAddr,u64>,
+struct FollowerInfo {
+    uncommitted_log_index: u64,
+    committed_log_index: u64,
+    initialization_flag: bool,
+    socket_address: SocketAddr,
 }
-impl FollowerReplicatedLogIndex {
-    fn new(asgard_data:&AsgardData) -> Result<Self,AsgardError> {
-        let peers = asgard_data.get_active_peers()?;
-        let mut node_log_index_hash_map:HashMap<SocketAddr,u64> = HashMap::new();
-        let initial_log_index = asgard_data.get_last_log_index();
-        for peer in peers {
-            node_log_index_hash_map.insert(peer,initial_log_index);
+impl FollowerInfo {
+    fn new(initial_uncommitted_log_index:u64,initial_committed_log_index:u64,socket_address:SocketAddr) -> Self {
+        Self{
+            uncommitted_log_index:initial_uncommitted_log_index,
+            committed_log_index:initial_committed_log_index,
+            initialization_flag:false,
+            socket_address,
         }
-        //add self
-        node_log_index_hash_map.insert(asgard_data.address.clone(),initial_log_index);
-        Ok(Self { 
-            node_log_index_hash_map
-        })
     }
-    fn get_commit_safe_index(&self) -> u64{
-        let mut log_indexes = vec![];
-        for (node,log_index) in self.node_log_index_hash_map.iter() {
-            log_indexes.push(log_index);
+    fn update_uncommitted_log_index(&mut self,log_index:u64) -> Result<(),AsgardError>{
+        if log_index>self.uncommitted_log_index {
+            self.uncommitted_log_index = log_index;
         }
-        log_indexes.sort();
-        let mid = log_indexes.len() / 2;
-        *log_indexes[mid]
-    }
-    fn update_node_log_index(&mut self,node:SocketAddr,log_index:u64) -> Result<(),AsgardError>{
-        let log_index_option = self.node_log_index_hash_map.get_mut(&node);
-        match log_index_option {
-            Some(mut_log_index) => {
-                if *mut_log_index>log_index{
-                    println!("Index not updated because given log index is lower than old one!");
-                }
-                else {
-                    *mut_log_index = log_index;
-                }
-                Ok(())
-            },
-            None => Err(UnknownPeerError::new("Expected peer not found while updating node log index".to_owned(),node))?,
+        else {
+            println!("Index not updated because given log index is lower than old one!");
         }
+        Ok(())
     }
 }
 
 pub(crate) struct Leader{
-    follower_replicated_log_index: FollowerReplicatedLogIndex,
+    follower_info_hash_map: HashMap<SocketAddr,FollowerInfo>,
 }
 
 impl Leader {
     fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
-        Ok(Self {  
-            follower_replicated_log_index: FollowerReplicatedLogIndex::new(asgard_data)?,
+        let peers = asgard_data.get_active_peers()?;
+        let mut follower_info_hash_map:HashMap<SocketAddr,FollowerInfo> = HashMap::new();
+        let initial_uncommitted_log_index = asgard_data.get_last_log_index();
+        let initial_committed_log_index = asgard_data.committed_log.get_last_log_index();
+        for peer in peers {
+            follower_info_hash_map.insert(peer,FollowerInfo::new(initial_uncommitted_log_index,initial_committed_log_index,peer));
+        }
+        //add self
+        follower_info_hash_map.insert(asgard_data.address.clone(),FollowerInfo::new(initial_uncommitted_log_index,initial_committed_log_index,asgard_data.address.clone()));
+        Ok(Self { 
+            follower_info_hash_map
         })
+    }
+    fn get_commit_safe_index(&self) -> u64{
+        let mut log_indexes = vec![];
+        for (node,follower_info) in self.follower_info_hash_map.iter() {
+            log_indexes.push(follower_info.uncommitted_log_index);
+        }
+        log_indexes.sort();
+        let mid = log_indexes.len() / 2;
+        log_indexes[mid]
+    }
+    fn update_node_log_index(&mut self,node:SocketAddr,log_index:u64) -> Result<(),AsgardError>{
+        let log_index_option = self.follower_info_hash_map.get_mut(&node);
+        match log_index_option {
+            Some(follower_info) => {
+                follower_info.update_uncommitted_log_index(log_index)
+            },
+            None => Err(UnknownPeerError::new("Expected peer not found while updating node log index".to_owned(),node))?,
+        }
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
