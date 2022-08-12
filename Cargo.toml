@@ -11,6 +11,7 @@ message-io = "0.14.3"
 prost = "0.9"
 prost-types = "0.9"
 thiserror = "1.0"
+log = "0.4.14"
 
 [build-dependencies]
 prost-build = { version =  "0.9"}

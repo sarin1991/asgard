@@ -15,7 +15,7 @@ pub(crate) struct AsgardData {
     pub(crate) transport_channel:TransportChannel,
     pub(crate) uncommmitted_log:UncommittedLog,
     pub(crate) committed_log:CommittedLog,
-    pub(crate) peers: Vec<Peer>,
+    pub(crate) nodes: Vec<Peer>,
 }
 impl AsgardData {
     pub(crate) fn new(transport_channel:TransportChannel,address:SocketAddr)->Self{
@@ -26,7 +26,7 @@ impl AsgardData {
             transport_channel,
             uncommmitted_log:UncommittedLog::new(),
             committed_log:CommittedLog::new(),
-            peers: vec![],
+            nodes: vec![],
         }
     }
     fn u32_to_u8(num:u32)->Result<u8,AsgardError>{
@@ -51,26 +51,36 @@ impl AsgardData {
         Ok(socket_address)
     }
     pub(crate) fn get_active_peers(&self) -> Result<Vec<SocketAddr>,AsgardError> {
-        let mut peers = vec![];
-        for peer in self.peers.iter() {
-            let peer_state_option = PeerState::from_i32(peer.peer);
+        let nodes = self.get_active_nodes()?;
+        let mut active_peers = vec![];
+        for peer in nodes {
+            if !peer.eq(&self.address) {
+                active_peers.push(peer);
+            }
+        }
+        Ok(active_peers)
+    }
+    pub(crate) fn get_active_nodes(&self) -> Result<Vec<SocketAddr>,AsgardError> {
+        let mut nodes = vec![];
+        for node in self.nodes.iter() {
+            let peer_state_option = PeerState::from_i32(node.peer);
             let peer_state = match peer_state_option {
                 Some(peer_state) => peer_state,
                 None => Err(ProtobufParsingError::new("Unable to parse peer state enum".to_owned()))?,
             };
             match peer_state {
                 PeerState::Active => {
-                    let protobuf_socket_address = match &peer.socket_address {
+                    let protobuf_socket_address = match &node.socket_address {
                         Some(protobuf_socket_address) => protobuf_socket_address,
                         None => Err(ProtobufParsingError::new("Peer did not contain any socket address".to_owned()))?,
                     };
                     let socket_address = AsgardData::get_socket_address(protobuf_socket_address)?;
-                    peers.push(socket_address);
+                    nodes.push(socket_address);
                 },
                 _ =>(),
             }
         }
-        Ok(peers)
+        Ok(nodes)
     }
     pub(crate) async fn send_asgardian_message(&self,message:AsgardianMessage,address:Address)->Result<(),AsgardError>{
         let tx = self.transport_channel.outbound_asgardian_message_sender.clone();

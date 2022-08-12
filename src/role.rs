@@ -8,6 +8,8 @@ use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
     VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 use crate::transport::{TransportChannel,Address};
+use crate::common::address_to_socket_address;
+use log::info;
 
 struct PeerVote {
     address:SocketAddr,
@@ -39,7 +41,9 @@ impl VoteCounter {
             node_vote_map.insert(peer.clone(),PeerVote::new(peer));
         }
         //add self
-        node_vote_map.insert(asgard_data.address.clone(),PeerVote::new(asgard_data.address.clone()));
+        let mut self_peer_vote = PeerVote::new(asgard_data.address.clone());
+        self_peer_vote.set_vote();
+        node_vote_map.insert(asgard_data.address.clone(),self_peer_vote);
         Ok(Self { 
             node_vote_map
         })
@@ -47,7 +51,7 @@ impl VoteCounter {
     fn got_majority(&self)->bool{
         let mut total = 0u32;
         let mut votes_granted = 0u32;
-        for (node,node_vote) in self.node_vote_map.iter() {
+        for (_node,node_vote) in self.node_vote_map.iter() {
             if node_vote.received_vote {
                 votes_granted = votes_granted+1;
             }
@@ -108,45 +112,100 @@ impl Rebel {
 
 pub(crate) struct LeaderUninitialized {
     vote_counter: VoteCounter,
+    leader_sync: LeaderSync,
 }
 impl LeaderUninitialized {
     fn new(asgard_data:&AsgardData) -> Result<Self,AsgardError> {
         let vote_counter = VoteCounter::new(asgard_data)?;
+        let mut leader_sync = LeaderSync::default();
+        leader_sync.term = asgard_data.term;
+        let last_commit_index = asgard_data.committed_log.get_last_log_index();
+        if last_commit_index > 0 {
+            let mut logs = if last_commit_index>=100 {
+                asgard_data.committed_log.get_logs((last_commit_index-99) as usize, (last_commit_index+1) as usize)?
+            }
+            else {
+                asgard_data.committed_log.get_logs(0, (last_commit_index+1) as usize)?
+            };
+            leader_sync.messages.append(&mut logs);
+        }
+        let mut uncommitted_logs = asgard_data.uncommmitted_log.get_logs();
+        leader_sync.messages.append(&mut uncommitted_logs);
         Ok(
             Self {
                 vote_counter,
+                leader_sync,
             }
         )
     }
+    fn get_variant(role: &mut Role) -> Result<&mut Self,AsgardError>{
+        let leader_uninitialized = match role {
+            Role::LeaderUninitialized(leader_uninitialized) => leader_uninitialized,
+            _ => Err(InconsistentRoleError::new("Leader Uninitialized".to_owned(),role.get_role_name()))?,
+        };
+        Ok(leader_uninitialized)
+    }
+    fn to_leader(role: &mut Role,asgard_data:&AsgardData) ->Result<(),AsgardError> {
+        let leader = Leader::new(asgard_data)?;
+        *role = Role::Leader(leader);
+        panic!("Not Completed!");
+        Ok(())
+    }
     async fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        unreachable!("LeaderUninitialized received leader sync message. This should not happen as only follower or candidates can receive this message!");;
     }
     async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        unreachable!("LeaderUninitialized received leader heartbeat message. This should not happen as only follower or candidates can receive this message!");;
     }
     async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        info!("Got vote response message: {:#?}. Ignoring this message as currently in Leader Unitialized state",vote_response);
+        Ok(false)
     }
     async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        info!("Got vote request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",vote_request);
+        Ok(false)
     }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        unreachable!("LeaderUninitialized received rebellion response message. This should not happen as only follower or candidates can send out a rebellion request!");;
     }
     async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        info!("Got rebellion request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",rebellion_request);
+        Ok(false)
     }
     async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let leader_uninitialized = LeaderUninitialized::get_variant(role)?;
+        let mut majority_initialized_flag = false;
+        if follower_update.initialization_flag {
+            let socket_address = address_to_socket_address(sender,asgard_data.address.clone())?;
+            leader_uninitialized.vote_counter.add_vote(socket_address)?;
+            if leader_uninitialized.vote_counter.got_majority() {
+                majority_initialized_flag = true;
+            }
+        }
+        if majority_initialized_flag {
+            info!("Got majority of followers that are initialized, so shifting to leader role");
+            LeaderUninitialized::to_leader(role, asgard_data)?;
+        }
+        Ok(false)
     }
     async fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        unreachable!("LeaderUninitialized received add entry message. This should not happen as only a leader send out a add entry message and we are in the leader uninitialized state.\
+         There can be only one leader every term so this means that another leader exists with the same term that sent this message!");
     }
-    async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_message_timer: AsgardMessageTimer,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+    async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,_asgard_message_timer: AsgardMessageTimer,_sender: Address)->Result<bool,AsgardError>{
+        let leader_uninitialized = LeaderUninitialized::get_variant(role)?;
+        let message = AsgardianMessage::LeaderSync(leader_uninitialized.leader_sync.clone());
+        let peers = asgard_data.get_active_peers()?;
+        for peer in peers {
+            if leader_uninitialized.vote_counter.get_vote(peer)?{
+                asgard_data.send_asgardian_message(message.clone(), Address::IP(peer.clone())).await?;
+            }
+        }
+        Ok(false)
     }
     async fn handle_asgard_election_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_election_timer: AsgardElectionTimer,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        info!("Ignoring asgard election timer, since already in leader uninitialized state. So we are trying to be leader.");
+        Ok(false)
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         let break_flag = match asgardian_message {
@@ -316,9 +375,9 @@ impl Candidate {
         };
         Ok(candidate)
     }
-    fn to_leader(role: &mut Role,asgard_data:&AsgardData) ->Result<(),AsgardError> {
-        let leader = Leader::new(asgard_data)?;
-        *role = Role::Leader(leader);
+    fn to_leader_uninitialized(role: &mut Role,asgard_data:&AsgardData) ->Result<(),AsgardError> {
+        let leader_unintialized = LeaderUninitialized::new(asgard_data)?;
+        *role = Role::LeaderUninitialized(leader_unintialized);
         panic!("Not Completed!");
         Ok(())
     }
@@ -358,7 +417,7 @@ impl Candidate {
         };
         if candidate.vote_counter.got_majority() {
             //Candidate is now leader
-            Candidate::to_leader(role,asgard_data)?;
+            Candidate::to_leader_uninitialized(role,asgard_data)?;
         }
         Ok(false)
     }
