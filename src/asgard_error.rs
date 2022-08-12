@@ -146,6 +146,28 @@ impl Error for InconsistentStateError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct LogIndexOutOfBoundError{
+    error_string:String,
+}
+impl LogIndexOutOfBoundError {
+    pub(crate) fn new(error_string:String) -> Self {
+        Self {
+            error_string:format!("LogIndexOutOfBoundError! - {}",error_string).to_owned(),
+        }
+    }
+}
+impl fmt::Display for LogIndexOutOfBoundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for LogIndexOutOfBoundError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -166,4 +188,6 @@ pub(crate) enum AsgardError {
     UnexpectedAddressVariantError(#[from] UnexpectedAddressVariantError),
     #[error("transparent")]
     InconsistentStateError(#[from] InconsistentStateError),
+    #[error("transparent")]
+    LogIndexOutOfBoundError(#[from] LogIndexOutOfBoundError),
 }
