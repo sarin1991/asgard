@@ -88,7 +88,8 @@ message VoteResponse{
 
 message LeaderSync{
     uint64 term=1;
-    repeated AsgardLogMessage messages=2;
+    repeated AsgardLogMessage uncommitted_messages=2;
+    repeated AsgardLogMessage committed_messages=3;
 }
 
 message GenericAsgardMessage{

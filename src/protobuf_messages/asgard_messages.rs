@@ -124,7 +124,9 @@ pub struct LeaderSync {
     #[prost(uint64, tag="1")]
     pub term: u64,
     #[prost(message, repeated, tag="2")]
-    pub messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
+    pub uncommitted_messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
+    #[prost(message, repeated, tag="3")]
+    pub committed_messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenericAsgardMessage {

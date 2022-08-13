@@ -127,10 +127,10 @@ impl LeaderUninitialized {
             else {
                 asgard_data.committed_log.get_logs(0, (last_commit_index+1) as usize)?
             };
-            leader_sync.messages.append(&mut logs);
+            leader_sync.committed_messages.append(&mut logs);
         }
         let mut uncommitted_logs = asgard_data.uncommmitted_log.get_logs();
-        leader_sync.messages.append(&mut uncommitted_logs);
+        leader_sync.uncommitted_messages.append(&mut uncommitted_logs);
         Ok(
             Self {
                 vote_counter,
@@ -180,6 +180,24 @@ impl LeaderUninitialized {
             leader_uninitialized.vote_counter.add_vote(socket_address)?;
             if leader_uninitialized.vote_counter.got_majority() {
                 majority_initialized_flag = true;
+            }
+        }
+        else {
+            let follower_committed_log_index = follower_update.log_index;
+            if follower_committed_log_index < asgard_data.committed_log.get_last_log_index()-100 {
+                info!("Follower's committed log index is {}. It's too far behind to be initialized. /
+                Leader's committed log index i {}. So sending the older committed log indexes.",
+                follower_committed_log_index,asgard_data.committed_log.get_last_log_index());
+                let start_index = (follower_committed_log_index+1) as usize;
+                let end_index = (std::cmp::min(follower_committed_log_index+101,asgard_data.committed_log.get_last_log_index()+1)) as usize;
+                let mut committed_logs = asgard_data.committed_log.get_logs(start_index, end_index)?;
+                let mut leader_sync = LeaderSync::default();
+                leader_sync.term = asgard_data.term;
+                leader_sync.committed_messages.append(&mut committed_logs);
+                let mut uncommitted_logs = asgard_data.uncommmitted_log.get_logs();
+                leader_sync.uncommitted_messages.append(&mut uncommitted_logs);
+                let asgardian_message = AsgardianMessage::LeaderSync(leader_sync);
+                asgard_data.send_asgardian_message(asgardian_message, sender).await?;
             }
         }
         if majority_initialized_flag {
