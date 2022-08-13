@@ -396,7 +396,6 @@ impl Candidate {
     fn to_leader_uninitialized(role: &mut Role,asgard_data:&AsgardData) ->Result<(),AsgardError> {
         let leader_unintialized = LeaderUninitialized::new(asgard_data)?;
         *role = Role::LeaderUninitialized(leader_unintialized);
-        panic!("Not Completed!");
         Ok(())
     }
     fn to_follower(role: &mut Role,leader: Option<Address>,voted_for: Address,asgard_data:&AsgardData) -> Result<(),AsgardError> {
