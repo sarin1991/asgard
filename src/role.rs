@@ -1,6 +1,9 @@
+use core::time;
 use std::collections::{VecDeque, HashMap};
+use std::cmp::{Ordering,Reverse};
 use std::net::SocketAddr;
-
+use std::collections::BinaryHeap;
+use std::time::{Duration, Instant};
 use crate::asgard_data::{AsgardData};
 use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError, InconsistentStateError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
@@ -241,20 +244,81 @@ impl LeaderUninitialized {
         Ok(break_flag)
     }
 }
+
+struct PendingMessage {
+    timestamp: Instant,
+    message: AsgardLogMessage,
+}
+impl PendingMessage {
+    fn new(timestamp:Instant,message:AsgardLogMessage)->Self{
+        Self{
+            timestamp,
+            message,
+        }
+    }
+    fn get_message(&self) -> AsgardLogMessage {
+        self.message.clone()
+    }
+}
+impl Ord for PendingMessage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        //Reversing Order to get min heap
+        Reverse(self.timestamp).cmp(&Reverse(other.timestamp))
+    }
+}
+impl PartialOrd for PendingMessage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for PendingMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.timestamp == other.timestamp
+    }
+}
+impl Eq for PendingMessage{}
+
 struct FollowerInfo {
     uncommitted_log_index: u64,
     committed_log_index: u64,
     initialization_flag: bool,
     socket_address: SocketAddr,
+    pending_message_heap: BinaryHeap<PendingMessage>,
 }
 impl FollowerInfo {
     fn new(initial_uncommitted_log_index:u64,initial_committed_log_index:u64,socket_address:SocketAddr) -> Self {
+        let pending_message_heap = BinaryHeap::new();
         Self{
             uncommitted_log_index:initial_uncommitted_log_index,
             committed_log_index:initial_committed_log_index,
             initialization_flag:false,
             socket_address,
+            pending_message_heap,
         }
+    }
+    fn add_pending_message(&mut self,asgard_log_message:AsgardLogMessage) -> (){
+        let timestamp = Instant::now();
+        let pending_message = PendingMessage::new(timestamp,asgard_log_message);
+        self.pending_message_heap.push(pending_message);
+    }
+    fn get_retry_messages(&mut self,retry_time_limit:Duration) -> Vec<AsgardLogMessage> {
+        let timestamp = Instant::now();
+        let mut retry_messages = vec![];
+        while let Some(mut pending_message) = self.pending_message_heap.pop() {
+            let mut break_flag = false;
+            if timestamp.duration_since(pending_message.timestamp) > retry_time_limit {
+                pending_message.timestamp = timestamp;
+                retry_messages.push(pending_message.get_message());
+            }
+            else {
+                break_flag = true;
+            }
+            self.pending_message_heap.push(pending_message);
+            if break_flag {
+                break;
+            }
+        }
+        retry_messages
     }
     fn update_uncommitted_log_index(&mut self,log_index:u64) -> (){
         if log_index>self.uncommitted_log_index {
