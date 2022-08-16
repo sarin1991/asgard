@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use crate::asgard_data::{AsgardData};
 use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError, InconsistentStateError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
-use crate::protobuf_messages::asgard_messages::AsgardLogMessage;
+use crate::protobuf_messages::asgard_messages::{AsgardLogMessage, asgard_log_message};
 use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
     VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
 use crate::transport::{TransportChannel,Address};
@@ -306,14 +306,20 @@ impl FollowerInfo {
         let mut retry_messages = vec![];
         while let Some(mut pending_message) = self.pending_message_heap.pop() {
             let mut break_flag = false;
-            if timestamp.duration_since(pending_message.timestamp) > retry_time_limit {
-                pending_message.timestamp = timestamp;
-                retry_messages.push(pending_message.get_message());
+            let asgard_log_message = pending_message.get_message();
+            //Check if follower already received message
+            if asgard_log_message.log_index>self.uncommitted_log_index {
+                if timestamp.duration_since(pending_message.timestamp) > retry_time_limit {
+                    pending_message.timestamp = timestamp; //Update last send timestamp
+                    retry_messages.push(asgard_log_message);
+                }
+                else {
+                    //Rest of the messages will be past retry limit so no need to loop through them
+                    break_flag=true;
+                }
+                //Add back message so that can be retried again later if needed
+                self.pending_message_heap.push(pending_message);
             }
-            else {
-                break_flag = true;
-            }
-            self.pending_message_heap.push(pending_message);
             if break_flag {
                 break;
             }
