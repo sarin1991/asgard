@@ -179,7 +179,7 @@ impl LeaderUninitialized {
         let leader_uninitialized = LeaderUninitialized::get_variant(role)?;
         let mut majority_initialized_flag = false;
         if follower_update.initialization_flag {
-            let socket_address = address_to_socket_address(sender,asgard_data.address.clone())?;
+            let socket_address = address_to_socket_address(sender,&asgard_data.address)?;
             leader_uninitialized.vote_counter.add_vote(socket_address)?;
             if leader_uninitialized.vote_counter.got_majority() {
                 majority_initialized_flag = true;
@@ -245,109 +245,29 @@ impl LeaderUninitialized {
     }
 }
 
-struct PendingMessage {
-    timestamp: Instant,
-    message: AsgardLogMessage,
-}
-impl PendingMessage {
-    fn new(timestamp:Instant,message:AsgardLogMessage)->Self{
-        Self{
-            timestamp,
-            message,
-        }
-    }
-    fn get_message(&self) -> AsgardLogMessage {
-        self.message.clone()
-    }
-}
-impl Ord for PendingMessage {
-    fn cmp(&self, other: &Self) -> Ordering {
-        //Reversing Order to get min heap
-        Reverse(self.timestamp).cmp(&Reverse(other.timestamp))
-    }
-}
-impl PartialOrd for PendingMessage {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for PendingMessage {
-    fn eq(&self, other: &Self) -> bool {
-        self.timestamp == other.timestamp
-    }
-}
-impl Eq for PendingMessage{}
-
 struct FollowerInfo {
     uncommitted_log_index: u64,
-    committed_log_index: u64,
     socket_address: SocketAddr,
-    pending_message_heap: BinaryHeap<PendingMessage>,
 }
 impl FollowerInfo {
-    fn new(initial_uncommitted_log_index:u64,initial_committed_log_index:u64,socket_address:SocketAddr) -> Self {
-        let pending_message_heap = BinaryHeap::new();
+    fn new(socket_address:SocketAddr) -> Self {
         Self{
-            uncommitted_log_index:initial_uncommitted_log_index,
-            committed_log_index:initial_committed_log_index,
+            uncommitted_log_index:0,
             socket_address,
-            pending_message_heap,
         }
-    }
-    fn add_pending_message(&mut self,asgard_log_message:AsgardLogMessage) -> (){
-        let timestamp = Instant::now();
-        let pending_message = PendingMessage::new(timestamp,asgard_log_message);
-        self.pending_message_heap.push(pending_message);
-    }
-    fn get_retry_messages(&mut self,retry_time_limit:Duration) -> Vec<AsgardLogMessage> {
-        let timestamp = Instant::now();
-        let mut retry_messages = vec![];
-        while let Some(mut pending_message) = self.pending_message_heap.pop() {
-            let mut break_flag = false;
-            let asgard_log_message = pending_message.get_message();
-            //Check if follower already received message
-            if asgard_log_message.log_index>self.uncommitted_log_index {
-                if timestamp.duration_since(pending_message.timestamp) > retry_time_limit {
-                    pending_message.timestamp = timestamp; //Update last send timestamp
-                    retry_messages.push(asgard_log_message);
-                }
-                else {
-                    //Rest of the messages will be past retry limit so no need to loop through them
-                    break_flag=true;
-                }
-                //Add back message so that can be retried again later if needed
-                self.pending_message_heap.push(pending_message);
-            }
-            if break_flag {
-                break;
-            }
-        }
-        retry_messages
     }
     fn update_uncommitted_log_index(&mut self,log_index:u64) -> (){
         if log_index>self.uncommitted_log_index {
             self.uncommitted_log_index = log_index;
         }
         else {
-            println!("Index not updated because given log index is lower than old one!");
+            info!("Index not updated because given log index is lower than old one!");
         }
-    }
-    fn update_committed_log_index(&mut self,log_index:u64) -> Result<(),AsgardError> {
-        if log_index>self.uncommitted_log_index {
-            let error = InconsistentStateError::new("Trying to update follower's commited log index to be higher than committed log index".to_owned());
-            return Err(AsgardError::InconsistentStateError(error));
-        }
-        else if log_index> self.committed_log_index{
-            self.committed_log_index = log_index;
-        }
-        else {
-            println!("Committed Log Index not updated because given log index is lower than old one!");
-        }
-        Ok(())
     }
 }
 
 pub(crate) struct Leader{
+    initial_commit_safe_index: u64,
     follower_info_hash_map: HashMap<SocketAddr,FollowerInfo>,
 }
 
@@ -355,12 +275,12 @@ impl Leader {
     fn new(asgard_data: &AsgardData) -> Result<Self,AsgardError> {
         let peers = asgard_data.get_active_peers()?;
         let mut follower_info_hash_map:HashMap<SocketAddr,FollowerInfo> = HashMap::new();
-        let initial_uncommitted_log_index = asgard_data.get_last_log_index();
-        let initial_committed_log_index = asgard_data.committed_log.get_last_log_index();
+        let initial_commit_safe_index = asgard_data.committed_log.get_last_log_index();
         for peer in peers {
-            follower_info_hash_map.insert(peer,FollowerInfo::new(initial_uncommitted_log_index,initial_committed_log_index,peer));
+            follower_info_hash_map.insert(peer,FollowerInfo::new(peer));
         }
-        Ok(Self { 
+        Ok(Self {
+            initial_commit_safe_index,
             follower_info_hash_map
         })
     }
@@ -372,9 +292,9 @@ impl Leader {
         log_indexes.push(asgard_data.get_last_log_index());
         log_indexes.sort();
         let mid = log_indexes.len() / 2;
-        log_indexes[mid]
+        std::cmp::max(log_indexes[mid],self.initial_commit_safe_index)
     }
-    fn update_node_log_index(&mut self,node:SocketAddr,log_index:u64) -> Result<(),AsgardError>{
+    fn update_node_uncommitted_log_index(&mut self,node:SocketAddr,log_index:u64) -> Result<(),AsgardError>{
         let log_index_option = self.follower_info_hash_map.get_mut(&node);
         match log_index_option {
             Some(follower_info) => {
@@ -413,7 +333,10 @@ impl Leader {
         Ok(false)
     }
     async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
+        let leader = Leader::get_variant(role)?;
+        let follower_socker_address = address_to_socket_address(sender,&asgard_data.address)?;
+        leader.update_node_uncommitted_log_index(follower_socker_address, follower_update.log_index)?;
+        Ok(false)
     }
     async fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
