@@ -61,38 +61,6 @@ pub mod asgard_log_message {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddEntry {
-    #[prost(uint64, tag="1")]
-    pub term: u64,
-    #[prost(message, repeated, tag="2")]
-    pub messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LeaderHeartbeat {
-    #[prost(uint64, tag="1")]
-    pub term: u64,
-    #[prost(string, tag="2")]
-    pub leader_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag="3")]
-    pub commit_index: u64,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FollowerUpdate {
-    #[prost(uint64, tag="1")]
-    pub term: u64,
-    #[prost(uint64, tag="2")]
-    pub log_index: u64,
-    #[prost(bool, tag="3")]
-    pub initialization_flag: bool,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RebellionRequest {
-    #[prost(uint64, tag="1")]
-    pub term: u64,
-    #[prost(string, tag="2")]
-    pub candidate_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct VoteRequest {
     #[prost(uint64, tag="1")]
     pub term: u64,
@@ -104,6 +72,20 @@ pub struct VoteRequest {
     pub last_log_index: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct VoteResponse {
+    #[prost(uint64, tag="1")]
+    pub term: u64,
+    #[prost(string, tag="2")]
+    pub candidate_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RebellionRequest {
+    #[prost(uint64, tag="1")]
+    pub term: u64,
+    #[prost(string, tag="2")]
+    pub candidate_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RebellionResponse {
     #[prost(uint64, tag="1")]
     pub term: u64,
@@ -113,20 +95,42 @@ pub struct RebellionResponse {
     pub vote_granted: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct VoteResponse {
+pub struct AsgardLogRequest {
     #[prost(uint64, tag="1")]
     pub term: u64,
-    #[prost(string, tag="2")]
-    pub candidate_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag="2")]
+    pub start_log_index: u64,
+    #[prost(uint64, tag="3")]
+    pub end_log_index: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LeaderSync {
+pub struct AsgardLogResponse {
     #[prost(uint64, tag="1")]
     pub term: u64,
-    #[prost(message, repeated, tag="2")]
-    pub uncommitted_messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
-    #[prost(message, repeated, tag="3")]
-    pub committed_messages: ::prost::alloc::vec::Vec<AsgardLogMessage>,
+    #[prost(uint64, tag="2")]
+    pub log_commit_index: u64,
+    #[prost(bool, tag="3")]
+    pub leader_initialized: bool,
+    #[prost(message, repeated, tag="4")]
+    pub message: ::prost::alloc::vec::Vec<AsgardLogMessage>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LeaderHeartbeat {
+    #[prost(uint64, tag="1")]
+    pub term: u64,
+    #[prost(uint64, tag="2")]
+    pub log_commit_index: u64,
+    #[prost(bool, tag="3")]
+    pub leader_initialized: bool,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FollowerUpdate {
+    #[prost(uint64, tag="1")]
+    pub term: u64,
+    #[prost(uint64, tag="2")]
+    pub log_index: u64,
+    #[prost(bool, tag="3")]
+    pub follower_initialized: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenericAsgardMessage {
@@ -138,21 +142,21 @@ pub mod generic_asgard_message {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum GenericMessage {
         #[prost(message, tag="1")]
-        AddEntryMessage(super::AddEntry),
+        VoteRequest(super::VoteRequest),
         #[prost(message, tag="2")]
-        HeartBeatMessage(super::LeaderHeartbeat),
+        VoteResponse(super::VoteResponse),
         #[prost(message, tag="3")]
-        FollowerUpdateMessage(super::FollowerUpdate),
+        RebellionRequest(super::RebellionRequest),
         #[prost(message, tag="4")]
-        CanvassRebellionMessage(super::RebellionRequest),
+        RebellionResponse(super::RebellionResponse),
         #[prost(message, tag="5")]
-        RequestVotesMessage(super::VoteRequest),
+        AsgardLogRequest(super::AsgardLogRequest),
         #[prost(message, tag="6")]
-        CanvassResponseMessage(super::RebellionResponse),
+        AsgardLogResponse(super::AsgardLogResponse),
         #[prost(message, tag="7")]
-        VoteResponseMessage(super::VoteResponse),
+        LeaderHeartBeat(super::LeaderHeartbeat),
         #[prost(message, tag="8")]
-        LeaderSyncMessage(super::LeaderSync),
+        FollowerUpdate(super::FollowerUpdate),
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

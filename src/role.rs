@@ -7,9 +7,8 @@ use std::time::{Duration, Instant};
 use crate::asgard_data::{AsgardData};
 use crate::asgard_error::{AsgardError,InconsistentRoleError,UnknownPeerError, UnexpectedAddressVariantError, InconsistentStateError};
 use crate::messages::{APIMessage,AsgardianMessage,Message,AsgardElectionTimer,AsgardMessageTimer};
-use crate::protobuf_messages::asgard_messages::{AsgardLogMessage, asgard_log_message};
-use crate::protobuf_messages::asgard_messages::{LeaderSync,LeaderHeartbeat,
-    VoteResponse,VoteRequest,RebellionResponse,RebellionRequest,FollowerUpdate,AddEntry};
+use crate::protobuf_messages::asgard_messages::{VoteRequest,VoteResponse, RebellionRequest, RebellionResponse, AsgardLogRequest, 
+                AsgardLogResponse, LeaderHeartbeat, FollowerUpdate, AsgardLogMessage};
 use crate::transport::{TransportChannel,Address};
 use crate::common::address_to_socket_address;
 use log::info;
@@ -115,29 +114,13 @@ impl Rebel {
 
 pub(crate) struct LeaderUninitialized {
     vote_counter: VoteCounter,
-    leader_sync: LeaderSync,
 }
 impl LeaderUninitialized {
     fn new(asgard_data:&AsgardData) -> Result<Self,AsgardError> {
         let vote_counter = VoteCounter::new(asgard_data)?;
-        let mut leader_sync = LeaderSync::default();
-        leader_sync.term = asgard_data.term;
-        let last_commit_index = asgard_data.committed_log.get_last_log_index();
-        if last_commit_index > 0 {
-            let mut logs = if last_commit_index>=100 {
-                asgard_data.committed_log.get_logs((last_commit_index-99) as usize, (last_commit_index+1) as usize)?
-            }
-            else {
-                asgard_data.committed_log.get_logs(0, (last_commit_index+1) as usize)?
-            };
-            leader_sync.committed_messages.append(&mut logs);
-        }
-        let mut uncommitted_logs = asgard_data.uncommmitted_log.get_logs();
-        leader_sync.uncommitted_messages.append(&mut uncommitted_logs);
         Ok(
             Self {
                 vote_counter,
-                leader_sync,
             }
         )
     }
@@ -154,53 +137,38 @@ impl LeaderUninitialized {
         panic!("Not Completed!");
         Ok(())
     }
-    async fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("LeaderUninitialized received leader sync message. This should not happen as only follower or candidates can receive this message!");
-    }
-    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("LeaderUninitialized received leader heartbeat message. This should not happen as only follower or candidates can receive this message!");
+    async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
+        info!("Got vote request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",vote_request);
+        Ok(false)
     }
     async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
         info!("Got vote response message: {:#?}. Ignoring this message as currently in Leader Unitialized state",vote_response);
         Ok(false)
     }
-    async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
-        info!("Got vote request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",vote_request);
+    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
+        info!("Got rebellion request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",rebellion_request);
         Ok(false)
     }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
         unreachable!("LeaderUninitialized received rebellion response message. This should not happen as only follower or candidates can send out a rebellion request!");
     }
-    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
-        info!("Got rebellion request message: {:#?}. Ignoring this message as currently in Leader Unitialized state",rebellion_request);
-        Ok(false)
+    async fn handle_asgard_log_request(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_request: AsgardLogRequest,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_log_response(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_response: AsgardLogResponse,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
+        unreachable!("LeaderUninitialized received leader heartbeat message. This should not happen as only follower or candidates can receive this message!");
     }
     async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
         let leader_uninitialized = LeaderUninitialized::get_variant(role)?;
         let mut majority_initialized_flag = false;
-        if follower_update.initialization_flag {
+        if follower_update.follower_initialized {
             let socket_address = address_to_socket_address(sender,&asgard_data.address)?;
             leader_uninitialized.vote_counter.add_vote(socket_address)?;
             if leader_uninitialized.vote_counter.got_majority() {
                 majority_initialized_flag = true;
-            }
-        }
-        else {
-            let follower_committed_log_index = follower_update.log_index;
-            if follower_committed_log_index < asgard_data.committed_log.get_last_log_index()-100 {
-                info!("Follower's committed log index is {}. It's too far behind to be initialized. /
-                Leader's committed log index i {}. So sending the older committed log indexes.",
-                follower_committed_log_index,asgard_data.committed_log.get_last_log_index());
-                let start_index = (follower_committed_log_index+1) as usize;
-                let end_index = (std::cmp::min(follower_committed_log_index+101,asgard_data.committed_log.get_last_log_index()+1)) as usize;
-                let mut committed_logs = asgard_data.committed_log.get_logs(start_index, end_index)?;
-                let mut leader_sync = LeaderSync::default();
-                leader_sync.term = asgard_data.term;
-                leader_sync.committed_messages.append(&mut committed_logs);
-                let mut uncommitted_logs = asgard_data.uncommmitted_log.get_logs();
-                leader_sync.uncommitted_messages.append(&mut uncommitted_logs);
-                let asgardian_message = AsgardianMessage::LeaderSync(leader_sync);
-                asgard_data.send_asgardian_message(asgardian_message, sender).await?;
             }
         }
         if majority_initialized_flag {
@@ -209,20 +177,8 @@ impl LeaderUninitialized {
         }
         Ok(false)
     }
-    async fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("LeaderUninitialized received add entry message. This should not happen as only a leader send out a add entry message and we are in the leader uninitialized state.\
-         There can be only one leader every term so this means that another leader exists with the same term that sent this message!");
-    }
     async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,_asgard_message_timer: AsgardMessageTimer,_sender: Address)->Result<bool,AsgardError>{
-        let leader_uninitialized = LeaderUninitialized::get_variant(role)?;
-        let message = AsgardianMessage::LeaderSync(leader_uninitialized.leader_sync.clone());
-        let peers = asgard_data.get_active_peers()?;
-        for peer in peers {
-            if leader_uninitialized.vote_counter.get_vote(peer)?{
-                asgard_data.send_asgardian_message(message.clone(), Address::IP(peer.clone())).await?;
-            }
-        }
-        Ok(false)
+        panic!("Unimplemented!");
     }
     async fn handle_asgard_election_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_election_timer: AsgardElectionTimer,sender: Address)->Result<bool,AsgardError>{
         info!("Ignoring asgard election timer, since already in leader uninitialized state. So we are trying to be leader.");
@@ -230,16 +186,16 @@ impl LeaderUninitialized {
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         let break_flag = match asgardian_message {
-            AsgardianMessage::LeaderSync(leader_sync) => LeaderUninitialized::handle_leader_sync(role,asgard_data,leader_sync,sender).await?,
-            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => LeaderUninitialized::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
-            AsgardianMessage::VoteResponse(vote_response) => LeaderUninitialized::handle_vote_response(role,asgard_data,vote_response,sender).await?,
-            AsgardianMessage::VoteRequest(vote_request) => LeaderUninitialized::handle_vote_request(role,asgard_data,vote_request,sender).await?,
-            AsgardianMessage::RebellionResponse(rebellion_response) => LeaderUninitialized::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
-            AsgardianMessage::RebellionRequest(rebellion_request) => LeaderUninitialized::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
-            AsgardianMessage::FollowerUpdate(follower_update) => LeaderUninitialized::handle_follower_update(role,asgard_data,follower_update,sender).await?,
-            AsgardianMessage::AddEntry(add_entry) => LeaderUninitialized::handle_add_entry(role,asgard_data,add_entry,sender).await?,
-            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => LeaderUninitialized::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
-            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => LeaderUninitialized::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
+            AsgardianMessage::VoteRequest(vote_request) => Self::handle_vote_request(role,asgard_data,vote_request,sender).await?,
+            AsgardianMessage::VoteResponse(vote_response) => Self::handle_vote_response(role,asgard_data,vote_response,sender).await?,
+            AsgardianMessage::RebellionRequest(rebellion_request) => Self::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
+            AsgardianMessage::RebellionResponse(rebellion_response) => Self::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
+            AsgardianMessage::AsgardLogRequest(asgard_log_request) => Self::handle_asgard_log_request(role,asgard_data,asgard_log_request,sender).await?,
+            AsgardianMessage::AsgardLogResponse(asgard_log_response) => Self::handle_asgard_log_response(role,asgard_data,asgard_log_response,sender).await?,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Self::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
+            AsgardianMessage::FollowerUpdate(follower_update) => Self::handle_follower_update(role,asgard_data,follower_update,sender).await?,
+            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Self::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
+            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Self::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
         };
         Ok(break_flag)
     }
@@ -311,35 +267,35 @@ impl Leader {
         };
         Ok(leader)
     }
-    async fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("Leader received leader sync message. This should not happen as only follower or candidates can receive this message!");
-    }
-    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("LeaderUninitialized received leader heartbeat message. This should not happen as only follower or candidates can receive this message!");
+    async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
+        info!("Got vote request message: {:#?}. Ignoring this message as currently in Leader state",vote_request);
+        Ok(false)
     }
     async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
         info!("Got vote response message: {:#?}. Ignoring this message as currently in Leader state",vote_response);
         Ok(false)
     }
-    async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
-        info!("Got vote request message: {:#?}. Ignoring this message as currently in Leader state",vote_request);
+    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
+        info!("Got rebellion request message: {:#?}. Ignoring this message as currently in Leader state",rebellion_request);
         Ok(false)
     }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
         unreachable!("Leader received rebellion response message. This should not happen as only follower or candidates can send out a rebellion request!");
     }
-    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
-        info!("Got rebellion request message: {:#?}. Ignoring this message as currently in Leader state",rebellion_request);
-        Ok(false)
+    async fn handle_asgard_log_request(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_request: AsgardLogRequest,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_log_response(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_response: AsgardLogResponse,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
+        unreachable!("LeaderUninitialized received leader heartbeat message. This should not happen as only follower or candidates can receive this message!");
     }
     async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
         let leader = Leader::get_variant(role)?;
         let follower_socker_address = address_to_socket_address(sender,&asgard_data.address)?;
         leader.update_node_uncommitted_log_index(follower_socker_address, follower_update.log_index)?;
         Ok(false)
-    }
-    async fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
-        panic!("Unimplemented!");
     }
     async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,_asgard_message_timer: AsgardMessageTimer,_sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
@@ -349,16 +305,16 @@ impl Leader {
     }
     pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
         let break_flag = match asgardian_message {
-            AsgardianMessage::LeaderSync(leader_sync) => Leader::handle_leader_sync(role,asgard_data,leader_sync,sender).await?,
-            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Leader::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
-            AsgardianMessage::VoteResponse(vote_response) => Leader::handle_vote_response(role,asgard_data,vote_response,sender).await?,
-            AsgardianMessage::VoteRequest(vote_request) => Leader::handle_vote_request(role,asgard_data,vote_request,sender).await?,
-            AsgardianMessage::RebellionResponse(rebellion_response) => Leader::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
-            AsgardianMessage::RebellionRequest(rebellion_request) => Leader::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
-            AsgardianMessage::FollowerUpdate(follower_update) => Leader::handle_follower_update(role,asgard_data,follower_update,sender).await?,
-            AsgardianMessage::AddEntry(add_entry) => Leader::handle_add_entry(role,asgard_data,add_entry,sender).await?,
-            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Leader::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
-            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Leader::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
+            AsgardianMessage::VoteRequest(vote_request) => Self::handle_vote_request(role,asgard_data,vote_request,sender).await?,
+            AsgardianMessage::VoteResponse(vote_response) => Self::handle_vote_response(role,asgard_data,vote_response,sender).await?,
+            AsgardianMessage::RebellionRequest(rebellion_request) => Self::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
+            AsgardianMessage::RebellionResponse(rebellion_response) => Self::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
+            AsgardianMessage::AsgardLogRequest(asgard_log_request) => Self::handle_asgard_log_request(role,asgard_data,asgard_log_request,sender).await?,
+            AsgardianMessage::AsgardLogResponse(asgard_log_response) => Self::handle_asgard_log_response(role,asgard_data,asgard_log_response,sender).await?,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Self::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
+            AsgardianMessage::FollowerUpdate(follower_update) => Self::handle_follower_update(role,asgard_data,follower_update,sender).await?,
+            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Self::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
+            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Self::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
         };
         Ok(break_flag)
     }
@@ -391,8 +347,50 @@ impl Follower {
             leader_message_queue: LeaderMessageQueue::new(),
         })
     }
-    pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+    async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
         panic!("Unimplemented!");
+    }
+    async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_log_request(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_request: AsgardLogRequest,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_log_response(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_response: AsgardLogResponse,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
+    }
+    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");   
+    }
+    async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,_asgard_message_timer: AsgardMessageTimer,_sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    async fn handle_asgard_election_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_election_timer: AsgardElectionTimer,sender: Address)->Result<bool,AsgardError>{
+        panic!("Unimplemented!");
+    }
+    pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+        let break_flag = match asgardian_message {
+            AsgardianMessage::VoteRequest(vote_request) => Self::handle_vote_request(role,asgard_data,vote_request,sender).await?,
+            AsgardianMessage::VoteResponse(vote_response) => Self::handle_vote_response(role,asgard_data,vote_response,sender).await?,
+            AsgardianMessage::RebellionRequest(rebellion_request) => Self::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
+            AsgardianMessage::RebellionResponse(rebellion_response) => Self::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
+            AsgardianMessage::AsgardLogRequest(asgard_log_request) => Self::handle_asgard_log_request(role,asgard_data,asgard_log_request,sender).await?,
+            AsgardianMessage::AsgardLogResponse(asgard_log_response) => Self::handle_asgard_log_response(role,asgard_data,asgard_log_response,sender).await?,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Self::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
+            AsgardianMessage::FollowerUpdate(follower_update) => Self::handle_follower_update(role,asgard_data,follower_update,sender).await?,
+            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Self::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
+            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Self::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
+        };
+        Ok(break_flag)
     }
 }
 
@@ -410,21 +408,6 @@ impl Candidate {
             vote_counter,
         })
     }
-    pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
-        let break_flag = match asgardian_message {
-            AsgardianMessage::LeaderSync(leader_sync) => Candidate::handle_leader_sync(role,asgard_data,leader_sync,sender).await?,
-            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Candidate::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
-            AsgardianMessage::VoteResponse(vote_response) => Candidate::handle_vote_response(role,asgard_data,vote_response,sender).await?,
-            AsgardianMessage::VoteRequest(vote_request) => Candidate::handle_vote_request(role,asgard_data,vote_request,sender).await?,
-            AsgardianMessage::RebellionResponse(rebellion_response) => Candidate::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
-            AsgardianMessage::RebellionRequest(rebellion_request) => Candidate::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
-            AsgardianMessage::FollowerUpdate(follower_update) => Candidate::handle_follower_update(role,asgard_data,follower_update,sender).await?,
-            AsgardianMessage::AddEntry(add_entry) => Candidate::handle_add_entry(role,asgard_data,add_entry,sender).await?,
-            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Candidate::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
-            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Candidate::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
-        };
-        Ok(break_flag)
-    }
     fn get_variant(role: &mut Role) -> Result<&mut Self,AsgardError>{
         let candidate = match role {
             Role::Candidate(candidate) => candidate,
@@ -441,41 +424,6 @@ impl Candidate {
         let follower = Follower::new(leader,voted_for,asgard_data)?;
         *role = Role::Follower(follower);
         Ok(())
-    }
-    async fn handle_leader_sync(role: &mut Role,asgard_data: &mut AsgardData,leader_sync: LeaderSync,sender: Address)->Result<bool,AsgardError>{
-        let candidate = Candidate::get_variant(role)?;
-        let voted_for = match candidate.voted_for_self {
-            true => Address::IP(asgard_data.address.clone()),
-            false => sender.clone(),
-        };
-        Candidate::to_follower(role, Some(sender.clone()), voted_for, asgard_data)?;
-        let message = Message::AsgardianMessage(AsgardianMessage::LeaderSync(leader_sync));
-        asgard_data.repeat_message(message, sender).await?;
-        Ok(false)
-    }
-    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
-        let candidate = Candidate::get_variant(role)?;
-        let voted_for = match candidate.voted_for_self {
-            true => Address::IP(asgard_data.address.clone()),
-            false => sender.clone(),
-        };
-        Candidate::to_follower(role, Some(sender.clone()), voted_for, asgard_data)?;
-        let message = Message::AsgardianMessage(AsgardianMessage::LeaderHeartbeat(leader_heartbeat));
-        asgard_data.repeat_message(message, sender).await?;
-        Ok(false)
-    }
-    async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
-        let candidate = Candidate::get_variant(role)?;
-        match sender {
-            Address::IP(socket_address) => candidate.vote_counter.add_vote(socket_address)?,
-            Address::Local => candidate.vote_counter.add_vote(asgard_data.address.clone())?,
-            Address::Broadcast => Err(UnexpectedAddressVariantError::new("IP or Local".to_owned(),"Broadcast".to_owned()))?,
-        };
-        if candidate.vote_counter.got_majority() {
-            //Candidate is now leader
-            Candidate::to_leader_uninitialized(role,asgard_data)?;
-        }
-        Ok(false)
     }
     async fn handle_vote_request(role: &mut Role,asgard_data: &mut AsgardData,vote_request: VoteRequest,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
@@ -503,6 +451,31 @@ impl Candidate {
         }
         Ok(false)
     }
+    async fn handle_vote_response(role: &mut Role,asgard_data: &mut AsgardData,vote_response: VoteResponse,sender: Address)->Result<bool,AsgardError>{
+        let candidate = Candidate::get_variant(role)?;
+        match sender {
+            Address::IP(socket_address) => candidate.vote_counter.add_vote(socket_address)?,
+            Address::Local => candidate.vote_counter.add_vote(asgard_data.address.clone())?,
+            Address::Broadcast => Err(UnexpectedAddressVariantError::new("IP or Local".to_owned(),"Broadcast".to_owned()))?,
+        };
+        if candidate.vote_counter.got_majority() {
+            //Candidate is now leader
+            Candidate::to_leader_uninitialized(role,asgard_data)?;
+        }
+        Ok(false)
+    }
+    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
+        let candidate = Candidate::get_variant(role)?;
+        if candidate.rebel.is_rebel() {
+            let mut rebellion_response = RebellionResponse::default();
+            rebellion_response.term = asgard_data.term;
+            rebellion_response.vote_granted = true;
+            rebellion_response.peer_id = asgard_data.address.to_string();
+            let asgardian_message = AsgardianMessage::RebellionResponse(rebellion_response);
+            asgard_data.send_asgardian_message(asgardian_message, sender).await?;
+        }
+        Ok(false)
+    }
     async fn handle_rebellion_response(role: &mut Role,asgard_data: &mut AsgardData,rebellion_response: RebellionResponse,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
         if candidate.rebel.is_rebel() & rebellion_response.vote_granted {
@@ -520,31 +493,25 @@ impl Candidate {
         }
         Ok(false)
     }
-    async fn handle_rebellion_request(role: &mut Role,asgard_data: &mut AsgardData,rebellion_request: RebellionRequest,sender: Address)->Result<bool,AsgardError>{
-        let candidate = Candidate::get_variant(role)?;
-        if candidate.rebel.is_rebel() {
-            let mut rebellion_response = RebellionResponse::default();
-            rebellion_response.term = asgard_data.term;
-            rebellion_response.vote_granted = true;
-            rebellion_response.peer_id = asgard_data.address.to_string();
-            let asgardian_message = AsgardianMessage::RebellionResponse(rebellion_response);
-            asgard_data.send_asgardian_message(asgardian_message, sender).await?;
-        }
-        Ok(false)
+    async fn handle_asgard_log_request(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_request: AsgardLogRequest,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
     }
-    async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
-        unreachable!("Candidate received follower update message. This should not happen as only leaders can receive this message!");
+    async fn handle_asgard_log_response(role: &mut Role,asgard_data: &mut AsgardData,asgard_log_response: AsgardLogResponse,sender: Address)->Result<bool,AsgardError> {
+        panic!("Unimplemented!");
     }
-    async fn handle_add_entry(role: &mut Role,asgard_data: &mut AsgardData,add_entry: AddEntry,sender: Address)->Result<bool,AsgardError>{
+    async fn handle_leader_heartbeat(role: &mut Role,asgard_data: &mut AsgardData,leader_heartbeat: LeaderHeartbeat,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
         let voted_for = match candidate.voted_for_self {
             true => Address::IP(asgard_data.address.clone()),
             false => sender.clone(),
         };
         Candidate::to_follower(role, Some(sender.clone()), voted_for, asgard_data)?;
-        let message = Message::AsgardianMessage(AsgardianMessage::AddEntry(add_entry));
+        let message = Message::AsgardianMessage(AsgardianMessage::LeaderHeartbeat(leader_heartbeat));
         asgard_data.repeat_message(message, sender).await?;
         Ok(false)
+    }
+    async fn handle_follower_update(role: &mut Role,asgard_data: &mut AsgardData,follower_update: FollowerUpdate,sender: Address)->Result<bool,AsgardError>{
+        unreachable!("Candidate received follower update message. This should not happen as only leaders can receive this message!");
     }
     async fn handle_asgard_message_timer(role: &mut Role,asgard_data: &mut AsgardData,asgard_message_timer: AsgardMessageTimer,sender: Address)->Result<bool,AsgardError>{
         let candidate = Candidate::get_variant(role)?;
@@ -581,6 +548,21 @@ impl Candidate {
         let candidate = Candidate::get_variant(role)?;
         candidate.rebel.increment_leader_timeout();
         Ok(false)
+    }
+    pub(crate) async fn handle_asgardian_message(role: &mut Role,asgard_data: &mut AsgardData,asgardian_message: AsgardianMessage,sender: Address)->Result<bool,AsgardError>{
+        let break_flag = match asgardian_message {
+            AsgardianMessage::VoteRequest(vote_request) => Self::handle_vote_request(role,asgard_data,vote_request,sender).await?,
+            AsgardianMessage::VoteResponse(vote_response) => Self::handle_vote_response(role,asgard_data,vote_response,sender).await?,
+            AsgardianMessage::RebellionRequest(rebellion_request) => Self::handle_rebellion_request(role,asgard_data,rebellion_request,sender).await?,
+            AsgardianMessage::RebellionResponse(rebellion_response) => Self::handle_rebellion_response(role,asgard_data,rebellion_response,sender).await?,
+            AsgardianMessage::AsgardLogRequest(asgard_log_request) => Self::handle_asgard_log_request(role,asgard_data,asgard_log_request,sender).await?,
+            AsgardianMessage::AsgardLogResponse(asgard_log_response) => Self::handle_asgard_log_response(role,asgard_data,asgard_log_response,sender).await?,
+            AsgardianMessage::LeaderHeartbeat(leader_heartbeat) => Self::handle_leader_heartbeat(role,asgard_data,leader_heartbeat,sender).await?,
+            AsgardianMessage::FollowerUpdate(follower_update) => Self::handle_follower_update(role,asgard_data,follower_update,sender).await?,
+            AsgardianMessage::AsgardMessageTimer(asgard_message_timer) => Self::handle_asgard_message_timer(role,asgard_data,asgard_message_timer,sender).await?,
+            AsgardianMessage::AsgardElectionTimer(asgard_election_timer) => Self::handle_asgard_election_timer(role,asgard_data,asgard_election_timer,sender).await?,
+        };
+        Ok(break_flag)
     }
 }
 
