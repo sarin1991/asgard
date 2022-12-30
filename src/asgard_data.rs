@@ -1,11 +1,9 @@
 use std::net::{SocketAddr,IpAddr,Ipv4Addr};
-use crate::protobuf_messages::asgard_messages::Peer;
-use crate::protobuf_messages::asgard_messages::PeerState;
-use crate::protobuf_messages::asgard_messages::SocketAddress;
+use crate::protobuf_messages::asgard_messages::{Peer,PeerState,SocketAddress,AsgardLogMessage};
 use crate::transport::Address;
 use crate::transport::TransportChannel;
 use crate::log::{CommittedLog,UncommittedLog};
-use crate::asgard_error::{AsgardError,ProtobufParsingError};
+use crate::asgard_error::{AsgardError,ProtobufParsingError, InconsistentInputsError};
 use crate::messages::{AsgardianMessage,Message};
 
 pub(crate) struct AsgardData {
@@ -105,5 +103,30 @@ impl AsgardData {
             Some(uncommitted_last_log_index_term) => uncommitted_last_log_index_term,
             None => self.committed_log.get_last_log_index_term(),
         }
+    }
+    pub(crate) fn get_logs(&self,start_index:usize,end_index:usize) -> Result<Vec<AsgardLogMessage>,AsgardError> {
+        if !(start_index<end_index) {
+            Err(InconsistentInputsError::new("Start index is higher or equal to end index for get_logs function in Asgard Data".to_owned()))?
+        }
+        let committed_last_log_index = self.committed_log.get_last_log_index() as usize;
+        let mut asgard_logs = vec![];
+        if start_index<=committed_last_log_index {
+            //At least some logs are in committed log
+            let committed_log_end_index = std::cmp::min(end_index,committed_last_log_index+1);
+            let committed_logs = self.committed_log.get_logs(start_index, committed_log_end_index)?;
+            for committed_log in committed_logs {
+                asgard_logs.push(committed_log);
+            }
+        }
+        if end_index>committed_last_log_index+1 {
+            let uncommited_logs = self.uncommmitted_log.get_logs();
+            for uncommited_log in uncommited_logs {
+                let uncommitted_log_index = uncommited_log.log_index as usize;
+                if uncommitted_log_index < end_index {
+                    asgard_logs.push(uncommited_log.clone())
+                }
+            }
+        }
+        Ok(asgard_logs)
     }
 }

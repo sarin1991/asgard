@@ -46,33 +46,21 @@ message AsgardLogMessage{
     }
 }
 
-message AddEntry{
-    uint64 term=1;
-    repeated AsgardLogMessage messages=2;
-}
-
-message LeaderHeartbeat {
-    uint64 term=1;
-    string leader_id=2;
-    uint64 commit_index=3;
-}
-
-message FollowerUpdate{
-    uint64 term=1;
-    uint64 log_index=2;
-    bool initialization_flag=3;
-}
-
-message RebellionRequest{
-    uint64 term=1;
-    string candidate_id=2;
-}
-
 message VoteRequest{
     uint64 term=1;
     string candidate_id=2;
     uint64 last_log_index_term=3;
     uint64 last_log_index=4;
+}
+
+message VoteResponse{
+    uint64 term=1;
+    string candidate_id=2;
+}
+
+message RebellionRequest{
+    uint64 term=1;
+    string candidate_id=2;
 }
 
 message RebellionResponse{
@@ -81,26 +69,40 @@ message RebellionResponse{
     bool VoteGranted=3;
 }
 
-message VoteResponse{
+message AsgardLogRequest{
     uint64 term=1;
-    string candidate_id=2;
+    uint64 start_log_index=2;
+    uint64 end_log_index=3;
 }
 
-message LeaderSync{
+message AsgardLogResponse {
     uint64 term=1;
-    repeated AsgardLogMessage uncommitted_messages=2;
-    repeated AsgardLogMessage committed_messages=3;
+    uint64 log_commit_index=2;
+    bool leader_initialized=3;
+    repeated AsgardLogMessage message=4;
+}
+
+message LeaderHeartbeat {
+    uint64 term=1;
+    uint64 log_commit_index=2;
+    bool leader_initialized=3;
+}
+
+message FollowerUpdate{
+    uint64 term=1;
+    uint64 log_index=2;
+    bool follower_initialized=3;
 }
 
 message GenericAsgardMessage{
     oneof generic_message{
-        AddEntry add_entry_message=1;
-        LeaderHeartbeat heart_beat_message=2;
-        FollowerUpdate follower_update_message=3;
-        RebellionRequest canvass_rebellion_message=4;
-        VoteRequest request_votes_message=5;
-        RebellionResponse canvass_response_message=6;
-        VoteResponse vote_response_message=7;
-        LeaderSync leader_sync_message=8;
+        VoteRequest vote_request=1;
+        VoteResponse vote_response=2;
+        RebellionRequest rebellion_request=3;
+        RebellionResponse rebellion_response=4;
+        AsgardLogRequest asgard_log_request=5;
+        AsgardLogResponse asgard_log_response=6;
+        LeaderHeartbeat leader_heart_beat=7;
+        FollowerUpdate follower_update=8;
     }
 }

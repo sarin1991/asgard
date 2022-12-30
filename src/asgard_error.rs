@@ -168,6 +168,28 @@ impl Error for LogIndexOutOfBoundError {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct InconsistentInputsError{
+    error_string:String,
+}
+impl InconsistentInputsError {
+    pub(crate) fn new(error_string:String) -> Self {
+        Self {
+            error_string:format!("InconsistentInputsError! - {}",error_string).to_owned(),
+        }
+    }
+}
+impl fmt::Display for InconsistentInputsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}",self.error_string)
+    }
+}
+impl Error for InconsistentInputsError {
+    fn description(&self) -> &str {
+        &self.error_string
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum AsgardError {
     #[error("transparent")]
@@ -190,4 +212,6 @@ pub(crate) enum AsgardError {
     InconsistentStateError(#[from] InconsistentStateError),
     #[error("transparent")]
     LogIndexOutOfBoundError(#[from] LogIndexOutOfBoundError),
+    #[error("transparent")]
+    InconsistentInputsError(#[from] InconsistentInputsError),
 }
